@@ -1,0 +1,122 @@
+// The Local Yield - Phase 1: Marketplace for Local Goods
+// https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  BUYER
+  PRODUCER
+  ADMIN
+}
+
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  name      String?
+  role      Role      @default(BUYER)
+  zipCode   String
+  bio       String?
+  avatarUrl String?
+  createdAt DateTime  @default(now())
+
+  products     Product[]
+  ordersAsBuyer    Order[]    @relation("OrderBuyer")
+  ordersAsProducer Order[]    @relation("OrderProducer")
+  events       Event[]
+  reviewsReceived Review[]   @relation("ReviewProducer")
+  reviewsGiven   Review[]   @relation("ReviewReviewer")
+  subscriptionsAsSubscriber Subscription[] @relation("SubscriptionSubscriber")
+  subscriptionsAsProducer   Subscription[] @relation("SubscriptionProducer")
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  price       Float
+  stockImage  String?
+  imageUrl    String?
+  category    String
+  delivery    Boolean
+  pickup      Boolean
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  orders       Order[]
+  eventProducts EventProduct[]
+}
+
+model Order {
+  id         String   @id @default(cuid())
+  buyerId    String
+  producerId String
+  productId  String
+  notes      String?
+  paid       Boolean  @default(false)
+  viaCash    Boolean  @default(false)
+  pickupDate DateTime
+  createdAt  DateTime @default(now())
+
+  buyer    User    @relation("OrderBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+  producer User    @relation("OrderProducer", fields: [producerId], references: [id], onDelete: Cascade)
+  product  Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  reviews  Review[]
+}
+
+// Subscription references producer by userId (producer); add producerId to User if needed later
+
+model Event {
+  id            String   @id @default(cuid())
+  userId        String
+  name          String
+  location      String
+  eventDate     DateTime
+  allowPreorder Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products EventProduct[]
+}
+
+model EventProduct {
+  eventId   String
+  productId String
+  event     Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, productId])
+}
+
+model Review {
+  id         String   @id @default(cuid())
+  reviewerId String
+  producerId String
+  orderId    String
+  privateFlag Boolean @default(true)
+  comment    String
+  resolved   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  reviewer User  @relation("ReviewReviewer", fields: [reviewerId], references: [id], onDelete: Cascade)
+  producer User  @relation("ReviewProducer", fields: [producerId], references: [id], onDelete: Cascade)
+  order    Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model Subscription {
+  id          String   @id @default(cuid())
+  userId      String
+  producerId  String
+  weeklyBox   Boolean  @default(true)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  subscriber User @relation("SubscriptionSubscriber", fields: [userId], references: [id], onDelete: Cascade)
+  producer   User @relation("SubscriptionProducer", fields: [producerId], references: [id], onDelete: Cascade)
+}
