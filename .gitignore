@@ -30,7 +30,8 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files — never commit secrets; .env.example is the template we commit
+# env files — never commit secrets. Explicit patterns only (no .env*):
+# .env* would match .env.example; we avoid it so the template stays tracked.
 .env
 .env.local
 .env.*.local
