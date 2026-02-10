@@ -1,6 +1,6 @@
 /**
  * Weekly veggie box subscription card.
- * Used on browse/shop and dashboard.
+ * Used on market browse/shop and dashboard.
  */
 
 import { formatPrice } from "@/lib/utils";
@@ -27,7 +27,7 @@ export function WeeklyBox({
   producerName,
   producerId,
 }: WeeklyBoxProps) {
-  const href = producerId ? `/shop/${producerId}?box=${id}` : "#";
+  const href = producerId ? `/market/shop/${producerId}?box=${id}` : "#";
   return (
     <article className="overflow-hidden rounded-xl border border-brand-accent/30 bg-white shadow-sm">
       <a href={href} className="block p-4">

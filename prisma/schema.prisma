@@ -1,5 +1,14 @@
 // The Local Yield - Phase 1: Marketplace for Local Goods
 // https://pris.ly/d/prisma-schema
+//
+// Listing types (one domain, two experiences):
+//   Market = Product (this table). Care = ServiceListing (separate table, later).
+//   Do not unify into one "Listing" table; keep two tables. Shared across both:
+//   - Users (this User model; Care will add roles/fields as needed)
+//   - Reviews / issue resolution (Review model can later reference ServiceListing orders)
+//   - Location (User.zipCode, etc.; Care will use same)
+//   - Messaging (future: shared Conversation/Message model)
+// When adding Care: add ServiceListing (and CareOrder/CareBooking) tables; reuse User, Review, location concepts.
 
 generator client {
   provider = "prisma-client-js"
@@ -33,6 +42,7 @@ model User {
   reviewsGiven   Review[]   @relation("ReviewReviewer")
   subscriptionsAsSubscriber Subscription[] @relation("SubscriptionSubscriber")
   subscriptionsAsProducer   Subscription[] @relation("SubscriptionProducer")
+  itemRequests ItemRequest[]
 }
 
 model Product {
@@ -63,6 +73,10 @@ model Order {
   viaCash    Boolean  @default(false)
   pickupDate DateTime
   createdAt  DateTime @default(now())
+  /// After this time, buyer may publish a negative public review (resolution window).
+  resolutionWindowEndsAt DateTime?
+  /// Pickup code / QR for event or pickup (show at confirmation).
+  pickupCode String?
 
   buyer    User    @relation("OrderBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
   producer User    @relation("OrderProducer", fields: [producerId], references: [id], onDelete: Cascade)
@@ -72,6 +86,7 @@ model Order {
 
 // Subscription references producer by userId (producer); add producerId to User if needed later
 
+/// Events: "Pick up at market booth Saturday". Preorder + pickup QR (add on Order/EventOrder when building checkout).
 model Event {
   id            String   @id @default(cuid())
   userId        String
@@ -95,14 +110,20 @@ model EventProduct {
 }
 
 model Review {
-  id         String   @id @default(cuid())
-  reviewerId String
-  producerId String
-  orderId    String
-  privateFlag Boolean @default(true)
-  comment    String
-  resolved   Boolean  @default(false)
-  createdAt  DateTime @default(now())
+  id          String   @id @default(cuid())
+  reviewerId  String
+  producerId  String
+  orderId     String
+  privateFlag Boolean  @default(true)
+  comment     String
+  resolved    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  /// Structured rating 1–5 for public display (short + structured, no rant walls).
+  rating           Int?
+  /// Producer response: fix/refund/replace (visible alongside review).
+  producerResponse String?
+  /// Admin moderation: hide abusive or off-topic content.
+  hiddenByAdmin    Boolean   @default(false)
 
   reviewer User  @relation("ReviewReviewer", fields: [reviewerId], references: [id], onDelete: Cascade)
   producer User  @relation("ReviewProducer", fields: [producerId], references: [id], onDelete: Cascade)
@@ -119,4 +140,17 @@ model Subscription {
 
   subscriber User @relation("SubscriptionSubscriber", fields: [userId], references: [id], onDelete: Cascade)
   producer   User @relation("SubscriptionProducer", fields: [producerId], references: [id], onDelete: Cascade)
+}
+
+/// Request an item: buyers ask for eggs, honey, etc.; producers see demand in their radius (liquidity).
+model ItemRequest {
+  id          String   @id @default(cuid())
+  requesterId String
+  description String
+  zipCode     String
+  radiusMiles Int?     /// Optional; producers within radius see it.
+  status      String   @default("open") /// open | fulfilled | closed
+  createdAt   DateTime @default(now())
+
+  requester User @relation(fields: [requesterId], references: [id], onDelete: Cascade)
 }

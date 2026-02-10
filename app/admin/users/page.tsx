@@ -1,9 +1,16 @@
 /**
- * Admin: user moderation.
- * TODO: Protect with requireAdmin; list users and roles.
+ * Admin: user moderation. Admin only; others redirected to dashboard.
  */
 
-export default function AdminUsersPage() {
+import { redirect } from "next/navigation";
+import { requireAdmin } from "@/lib/auth";
+
+export default async function AdminUsersPage() {
+  try {
+    await requireAdmin();
+  } catch {
+    redirect("/dashboard");
+  }
   return (
     <div className="min-h-screen bg-brand-light">
       <div className="mx-auto max-w-4xl px-4 py-8">

@@ -30,7 +30,7 @@ export function ProductCard({
   pickup,
   producerId,
 }: ProductCardProps) {
-  const shopHref = producerId ? `/shop/${producerId}` : "#";
+  const shopHref = producerId ? `/market/shop/${producerId}` : "#";
   return (
     <article className="overflow-hidden rounded-xl border border-brand/20 bg-white shadow-sm transition hover:shadow-md">
       <Link href={shopHref} className="block">

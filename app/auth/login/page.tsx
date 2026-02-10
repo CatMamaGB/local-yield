@@ -1,5 +1,5 @@
 /**
- * Login page. Wire to Clerk or Supabase Auth.
+ * Login page. Phase 1: Coming Soon. Wire to Clerk or Supabase when adding auth.
  */
 
 import Link from "next/link";
@@ -7,37 +7,33 @@ import Link from "next/link";
 export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-brand-light px-4">
-      <div className="w-full max-w-sm rounded-xl bg-white p-8 shadow-md">
-        <h1 className="font-display text-2xl font-semibold text-brand">Log in</h1>
-        <p className="mt-2 text-sm text-brand/80">
-          Auth not yet connected. Use Clerk or Supabase.
+      <div className="w-full max-w-sm rounded-xl border border-brand/20 bg-white p-8 shadow-sm">
+        <h1 className="font-display text-2xl font-semibold text-brand">
+          Log in
+        </h1>
+        <p className="mt-3 text-sm text-brand/80">
+          Sign-in is not set up yet. We’re focusing on browsing and listing first.
         </p>
-        <div className="mt-6 space-y-3">
-          <input
-            type="email"
-            placeholder="Email"
-            className="w-full rounded border border-brand/30 px-3 py-2 text-brand"
-            disabled
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            className="w-full rounded border border-brand/30 px-3 py-2 text-brand"
-            disabled
-          />
-          <button
-            type="button"
-            className="w-full rounded bg-brand py-2 text-white hover:bg-brand/90"
-            disabled
+        <p className="mt-2 text-sm font-medium text-brand">
+          Coming Soon
+        </p>
+        <p className="mt-4 text-xs text-brand/60">
+          Auth will be added when producers need to post products and manage dashboards.
+        </p>
+        <div className="mt-6 flex flex-col gap-3">
+          <Link
+            href="/market/browse"
+            className="rounded bg-brand py-2.5 text-center font-medium text-white hover:bg-brand/90"
           >
-            Sign in (coming soon)
-          </button>
-        </div>
-        <p className="mt-4 text-center text-sm text-brand/80">
-          <Link href="/auth/signup" className="text-brand-accent hover:underline">
-            Create an account
+            Browse local goods
           </Link>
-        </p>
+          <Link
+            href="/auth/signup"
+            className="text-center text-sm text-brand-accent hover:underline"
+          >
+            Create an account (coming soon)
+          </Link>
+        </div>
       </div>
     </div>
   );

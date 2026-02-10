@@ -22,7 +22,7 @@ export function EventCard({
   allowPreorder,
   producerId,
 }: EventCardProps) {
-  const href = producerId ? `/shop/${producerId}?event=${id}` : "#";
+  const href = producerId ? `/market/shop/${producerId}?event=${id}` : "#";
   return (
     <article className="rounded-xl border border-brand/20 bg-white p-4 shadow-sm">
       <Link href={href} className="block">

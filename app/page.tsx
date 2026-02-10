@@ -1,6 +1,6 @@
 /**
- * The Local Yield — landing page.
- * Phase 1: Marketplace for local goods (no shipping).
+ * The Local Yield — "Choose your path" landing.
+ * One domain, two experiences: Market (local goods) and Care (coming soon).
  */
 
 import Link from "next/link";
@@ -22,34 +22,45 @@ export default function Home() {
           The Local Yield
         </h1>
         <p className="mt-4 text-lg text-brand/80">
-          Your marketplace for local goods. Browse by location, pick up or get delivered — no shipping.
+          Your local marketplace. Choose your path:
         </p>
-        <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+        <div className="mt-10 grid gap-6 sm:grid-cols-2">
           <Link
-            href="/browse"
-            className="rounded-full bg-brand px-8 py-3 font-medium text-white transition hover:bg-brand/90"
+            href="/market"
+            className="rounded-2xl border-2 border-brand bg-white p-8 font-display text-xl font-semibold text-brand transition hover:border-brand-accent hover:bg-brand-light"
           >
-            Browse local goods
+            Market
           </Link>
           <Link
-            href="/auth/signup"
-            className="rounded-full border-2 border-brand px-8 py-3 font-medium text-brand transition hover:bg-brand/10"
+            href="/care"
+            className="rounded-2xl border-2 border-brand/30 bg-white p-8 font-display text-xl font-semibold text-brand transition hover:border-brand hover:bg-brand-light"
           >
-            Sign up to sell
+            Care
           </Link>
         </div>
+        <p className="mt-6 text-sm text-brand/70">
+          <Link href="/about" className="text-brand-accent underline hover:no-underline">
+            Learn more about us and our goals
+          </Link>
+        </p>
         <section className="mt-20 grid gap-8 text-left sm:grid-cols-2">
           <div className="rounded-xl border border-brand/20 bg-white p-6">
-            <h2 className="font-display text-xl font-semibold text-brand">For buyers</h2>
+            <h2 className="font-display text-xl font-semibold text-brand">Market</h2>
             <p className="mt-2 text-brand/80">
-              Set your ZIP, browse producers near you, and choose pickup or delivery. Pay with card or cash.
+              Local goods from producers near you. Browse by location, pick up or get delivered — no shipping.
             </p>
+            <Link href="/market/browse" className="mt-3 inline-block text-brand-accent font-medium hover:underline">
+              Browse local goods →
+            </Link>
           </div>
           <div className="rounded-xl border border-brand/20 bg-white p-6">
-            <h2 className="font-display text-xl font-semibold text-brand">For producers</h2>
+            <h2 className="font-display text-xl font-semibold text-brand">Care</h2>
             <p className="mt-2 text-brand/80">
-              List your goods, weekly veggie boxes, and events. Manage orders and subscriptions from your dashboard.
+              Find local caregivers and support. Coming soon — one account for Market and Care.
             </p>
+            <Link href="/care" className="mt-3 inline-block text-brand-accent font-medium hover:underline">
+              Learn about Care →
+            </Link>
           </div>
         </section>
       </main>

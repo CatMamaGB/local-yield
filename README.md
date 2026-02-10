@@ -1,7 +1,23 @@
 # The Local Yield
 
 **Phase 1: Marketplace for local goods (no shipping).**  
-Web + Mobile (React Native via Expo). This repo is the **Next.js web app**.
+Web + installable app (PWA). This repo is the **Next.js web app**.
+
+## Branch strategy
+
+- **master** — production-ready code; deploy to production.
+- **develop** — integration branch for testing; deploy to a staging URL (e.g. Vercel preview or dedicated staging env) if desired.
+
+Workflow: do feature work in short-lived branches (e.g. `feature/pwa-manifest`, `feature/about-page`), merge into `develop` for testing, then merge `develop` into `master` when validated.
+
+## Launch protection (public site vs dev)
+
+The **home page** (`/`) and **About** (`/about`) do not use auth and are safe to launch as the public website. The dev role switcher (Buyer/Producer/Admin) appears only when:
+
+- `NODE_ENV === "development"` (local), or
+- `NEXT_PUBLIC_ENABLE_DEV_TOOLS=true` (e.g. on a staging deployment).
+
+Production builds do not set `NEXT_PUBLIC_ENABLE_DEV_TOOLS`, so the public site stays clean while you keep working on the dev side (e.g. on `develop` or a staging URL).
 
 ## Tech stack
 
@@ -34,6 +50,14 @@ Web + Mobile (React Native via Expo). This repo is the **Next.js web app**.
    npm run dev
    ```
    Open [http://localhost:3000](http://localhost:3000).
+
+5. **Local testing (optional)**  
+   To seed test users for when real auth is wired, run:
+   ```bash
+   npx prisma db seed
+   ```
+   This creates/updates: `buyer@test.localyield.example`, `producer@test.localyield.example`, `admin@test.localyield.example`. Use only in development/staging.  
+   Until auth is integrated, use the dev-only role switcher in the navbar (development mode) to test as Buyer, Producer, or Admin.
 
 ## Project structure (web)
 

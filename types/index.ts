@@ -40,6 +40,10 @@ export interface Order {
   viaCash: boolean;
   pickupDate: Date;
   createdAt: Date;
+  /** After this time, buyer may publish a negative public review (resolution window). */
+  resolutionWindowEndsAt: Date | null;
+  /** Pickup code / QR for event or pickup (show at confirmation). */
+  pickupCode: string | null;
 }
 
 export interface Event {
@@ -61,6 +65,12 @@ export interface Review {
   comment: string;
   resolved: boolean;
   createdAt: Date;
+  /** Structured rating 1–5 (short + structured public reviews). */
+  rating: number | null;
+  /** Producer response: fix/refund/replace. */
+  producerResponse: string | null;
+  /** Admin moderation: hide abusive content. */
+  hiddenByAdmin: boolean;
 }
 
 export interface Subscription {
@@ -76,4 +86,15 @@ export interface Subscription {
 export interface LocationFilter {
   zipCode: string;
   radiusMiles?: number;
+}
+
+/** Request an item: buyers ask for eggs, honey, etc.; producers see demand in radius. */
+export interface ItemRequest {
+  id: string;
+  requesterId: string;
+  description: string;
+  zipCode: string;
+  radiusMiles: number | null;
+  status: string;
+  createdAt: Date;
 }

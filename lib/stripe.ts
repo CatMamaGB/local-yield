@@ -1,55 +1,34 @@
 /**
  * Stripe integration for The Local Yield.
- * Checkout with local pickup option; no shipping.
+ * Phase 1: Stub only — no keys, no checkout. Add when you’re ready for card payments & payouts.
  */
 
-import Stripe from "stripe";
-
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-export const stripe = stripeSecretKey
-  ? new Stripe(stripeSecretKey, { apiVersion: "2026-01-28.clover" })
-  : null;
-
+/** Phase 1: Always false. Set up STRIPE_SECRET_KEY in Phase 1.5/2. */
 export function isStripeConfigured(): boolean {
-  return Boolean(stripeSecretKey);
+  return false;
 }
 
-/** Create a Checkout session for one-time purchase (local pickup). */
-export async function createCheckoutSession(params: {
+/**
+ * Create a Checkout session (local pickup, no shipping).
+ * Phase 1: Returns null. Implement when adding Stripe.
+ */
+export async function createCheckoutSession(_params: {
   lineItems: Array<{ priceIdOrPrice: string; quantity: number }>;
   successUrl: string;
   cancelUrl: string;
   customerEmail?: string;
   metadata?: Record<string, string>;
-}): Promise<Stripe.Checkout.Session | null> {
-  if (!stripe) return null;
-  const session = await stripe.checkout.sessions.create({
-    mode: "payment",
-    line_items: params.lineItems.map((item) => ({
-      price: item.priceIdOrPrice,
-      quantity: item.quantity,
-    })),
-    success_url: params.successUrl,
-    cancel_url: params.cancelUrl,
-    customer_email: params.customerEmail,
-    metadata: params.metadata ?? {},
-    // No shipping — local pickup only
-    shipping_address_collection: undefined,
-  });
-  return session;
+}): Promise<null> {
+  return null;
 }
 
-/** Verify webhook signature (use in API route). */
+/**
+ * Verify webhook signature in API route.
+ * Phase 1: Returns null. Implement when adding Stripe webhooks.
+ */
 export function constructWebhookEvent(
-  payload: string | Buffer,
-  signature: string
-): Stripe.Event | null {
-  if (!stripe || !stripeWebhookSecret) return null;
-  try {
-    return stripe.webhooks.constructEvent(payload, signature, stripeWebhookSecret) as Stripe.Event;
-  } catch {
-    return null;
-  }
+  _payload: string | Buffer,
+  _signature: string
+): null {
+  return null;
 }
