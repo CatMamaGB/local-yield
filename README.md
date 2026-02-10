@@ -17,7 +17,9 @@ The **home page** (`/`) and **About** (`/about`) do not use auth and are safe to
 - `NODE_ENV === "development"` (local), or
 - `NEXT_PUBLIC_ENABLE_DEV_TOOLS=true` (e.g. on a staging deployment).
 
-Production builds do not set `NEXT_PUBLIC_ENABLE_DEV_TOOLS`, so the public site stays clean while you keep working on the dev side (e.g. on `develop` or a staging URL).
+**NEXT_PUBLIC_ENABLE_DEV_TOOLS must never be set on production.** In Vercel, set env vars per environment (Production vs Preview) so production does not inherit staging variables. Only add `NEXT_PUBLIC_ENABLE_DEV_TOOLS=true` to Preview/Staging; leave it unset for Production.
+
+**Future (optional):** To make `/` and `/about` maximally static/fast, consider a "public layout" pattern: route group `(public)/layout.tsx` without user fetching for those pages, and `(app)/layout.tsx` with user fetching for dashboard/browse/etc. Not required now; root layout + getCurrentUser() is fine as long as getCurrentUser() returns null for logged-out users and never throws.
 
 ## Tech stack
 
@@ -59,20 +61,30 @@ Production builds do not set `NEXT_PUBLIC_ENABLE_DEV_TOOLS`, so the public site 
    This creates/updates: `buyer@test.localyield.example`, `producer@test.localyield.example`, `admin@test.localyield.example`. Use only in development/staging.  
    Until auth is integrated, use the dev-only role switcher in the navbar (development mode) to test as Buyer, Producer, or Admin.
 
+## Mobile app and web parity
+
+- **Web API for mobile:** Mobile uses the same domain (e.g. `https://thelocalyield.com`). Main API: `GET /api/listings?zip=...` for Market browse; future: `/api/orders`, `/api/messages`, `/api/products`, `/api/events`.
+- **Shared types:** `types/index.ts`, `types/listings.ts`, `types/care.ts`. Later move to `packages/shared/src/types/*` so web + mobile import the same types.
+- **Deep link parity:** Mobile tabs map to web routes (Market → `/market`, `/market/shop/[id]`; Orders → `/dashboard/orders`; Messages → `/messages`; Profile → `/dashboard` or `/profile`; Care → `/care/*` when feature-flagged). URL is the source of truth.
+- **Expo API pattern:** In Expo, `apps/mobile/src/lib/api.ts` with base URL `https://thelocalyield.com`; every request is e.g. `GET https://thelocalyield.com/api/listings?zip=...`. No separate server.
+
+Full details: [docs/mobile-web-mapping.md](docs/mobile-web-mapping.md).
+
 ## Project structure (web)
 
 ```
 /app
   layout.tsx, page.tsx (landing)
-  /browse          — location-filtered shopping
-  /shop/[producerId] — public shop page
+  /market, /market/browse, /market/shop/[id] — Market
+  /care, /care/browse, /care/caregiver/[id]  — Care (feature-flagged)
   /auth/login, signup
   /dashboard      — producer: products, orders, subscriptions, events
   /admin/users, /admin/listings
+  /api/listings   — used by mobile for Market browse
 /components       — Navbar, ProductCard, WeeklyBox, DeliveryBadge, EventCard,
                    MessageThread, CatalogSelector, LocationInput
 /lib              — prisma, auth, stripe, utils, reviews
-/types            — User, Product, Order, Event, Review, etc.
+/types            — User, Product, Order, Event, Review, listings, care
 prisma/schema.prisma — Prisma models
 ```
 

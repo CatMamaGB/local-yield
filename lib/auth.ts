@@ -51,9 +51,10 @@ const STUB_USERS: Record<Role, SessionUser> = {
 const DUMMY_USER: SessionUser = STUB_BUYER;
 
 /**
- * Get current user from session.
+ * Get current user from session. Never throws for logged-out users.
  * Phase 1: In development, reads __dev_user cookie and returns matching stub (BUYER/PRODUCER/ADMIN).
  * Otherwise returns DUMMY_USER. Phase 1.5/2: Replace with Clerk/Supabase — return null when not signed in.
+ * Callers (e.g. root layout) must handle null; this does not force auth on any page.
  */
 export async function getCurrentUser(): Promise<SessionUser | null> {
   // TODO: Clerk: const { userId } = auth(); then fetch user from DB

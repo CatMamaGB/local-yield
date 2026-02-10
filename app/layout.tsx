@@ -29,6 +29,8 @@ export const viewport: Viewport = {
   themeColor: "#5D4524",
 };
 
+// getCurrentUser() returns null for logged-out users (when real auth is wired); never throws. No auth forced on any page.
+// Optional later: (public)/layout without user fetch + (app)/layout with user fetch for maximally static / and /about.
 export default async function RootLayout({
   children,
 }: Readonly<{
