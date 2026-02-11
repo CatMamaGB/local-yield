@@ -5,6 +5,14 @@
 
 export type Role = "BUYER" | "PRODUCER" | "ADMIN";
 
+/** Role flags: one account can be multiple (e.g. producer + homestead owner). Same login, no duplicates. */
+export interface UserRoleFlags {
+  isProducer: boolean;
+  isBuyer: boolean;
+  isCaregiver: boolean;
+  isHomesteadOwner: boolean;
+}
+
 export interface User {
   id: string;
   email: string;
@@ -14,6 +22,11 @@ export interface User {
   bio: string | null;
   avatarUrl: string | null;
   createdAt: Date;
+  /** Role flags for Market + Care; one User, multiple surfaces. */
+  isProducer?: boolean;
+  isBuyer?: boolean;
+  isCaregiver?: boolean;
+  isHomesteadOwner?: boolean;
 }
 
 export interface Product {
@@ -56,20 +69,22 @@ export interface Event {
   createdAt: Date;
 }
 
+export type ReviewType = "MARKET" | "CARE";
+
 export interface Review {
   id: string;
   reviewerId: string;
+  revieweeId: string;
   producerId: string;
-  orderId: string;
+  type: ReviewType;
+  orderId: string | null;
+  careBookingId: string | null;
   privateFlag: boolean;
   comment: string;
   resolved: boolean;
   createdAt: Date;
-  /** Structured rating 1–5 (short + structured public reviews). */
   rating: number | null;
-  /** Producer response: fix/refund/replace. */
   producerResponse: string | null;
-  /** Admin moderation: hide abusive content. */
   hiddenByAdmin: boolean;
 }
 

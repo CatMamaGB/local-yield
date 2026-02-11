@@ -22,18 +22,30 @@ const TEST_USERS = [
     name: "Test Buyer",
     role: "BUYER" as const,
     zipCode: "90210",
+    isProducer: false,
+    isBuyer: true,
+    isCaregiver: false,
+    isHomesteadOwner: false,
   },
   {
     email: "producer@test.localyield.example",
     name: "Test Producer",
     role: "PRODUCER" as const,
     zipCode: "90210",
+    isProducer: true,
+    isBuyer: false,
+    isCaregiver: false,
+    isHomesteadOwner: false,
   },
   {
     email: "admin@test.localyield.example",
     name: "Test Admin",
     role: "ADMIN" as const,
     zipCode: "90210",
+    isProducer: false,
+    isBuyer: true,
+    isCaregiver: false,
+    isHomesteadOwner: false,
   },
 ];
 
@@ -42,7 +54,15 @@ async function main() {
     await prisma.user.upsert({
       where: { email: user.email },
       create: user,
-      update: { name: user.name, role: user.role, zipCode: user.zipCode },
+      update: {
+        name: user.name,
+        role: user.role,
+        zipCode: user.zipCode,
+        isProducer: user.isProducer,
+        isBuyer: user.isBuyer,
+        isCaregiver: user.isCaregiver,
+        isHomesteadOwner: user.isHomesteadOwner,
+      },
     });
   }
   console.log("Seed complete: test users created/updated.");

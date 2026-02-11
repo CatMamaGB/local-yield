@@ -1,14 +1,14 @@
-// The Local Yield - Phase 1: Marketplace for Local Goods
+// The Local Yield - One platform, two surfaces (Market + Care).
 // https://pris.ly/d/prisma-schema
 //
-// Listing types (one domain, two experiences):
-//   Market = Product (this table). Care = ServiceListing (separate table, later).
-//   Do not unify into one "Listing" table; keep two tables. Shared across both:
-//   - Users (this User model; Care will add roles/fields as needed)
-//   - Reviews / issue resolution (Review model can later reference ServiceListing orders)
-//   - Location (User.zipCode, etc.; Care will use same)
-//   - Messaging (future: shared Conversation/Message model)
-// When adding Care: add ServiceListing (and CareOrder/CareBooking) tables; reuse User, Review, location concepts.
+// Shared infrastructure (build once):
+//   - User: one table, role flags (isProducer, isBuyer, isCaregiver, isHomesteadOwner). Same login, same account.
+//   - Location: User.zipCode + lib/geo radius logic for Market discovery and Caregiver proximity.
+//   - Messaging: Conversation + Message (Buyer↔Producer, Owner↔Caregiver).
+//   - Reviews: generic reviewer/reviewee + type (market | care).
+//   - Stripe: one-time payments; structure cleanly for future split payouts / escrow (Care).
+//
+// Market = Product + Order. Care = ServiceListing + CareBooking (later); hidden behind feature flag until Market has traction.
 
 generator client {
   provider = "prisma-client-js"
@@ -33,55 +33,121 @@ model User {
   bio       String?
   avatarUrl String?
   createdAt DateTime  @default(now())
+  /// Clerk (or other provider) external id for sync.
+  clerkId   String?   @unique @map("clerk_id")
+
+  /// Role flags: one account can be multiple (e.g. producer + homestead owner). Same login, no duplicates.
+  isProducer       Boolean @default(false)
+  isBuyer          Boolean @default(false)
+  isCaregiver      Boolean @default(false)
+  isHomesteadOwner Boolean @default(false)
 
   products     Product[]
+  producerProfile ProducerProfile?
   ordersAsBuyer    Order[]    @relation("OrderBuyer")
   ordersAsProducer Order[]    @relation("OrderProducer")
   events       Event[]
-  reviewsReceived Review[]   @relation("ReviewProducer")
-  reviewsGiven   Review[]   @relation("ReviewReviewer")
+  reviewsReceived   Review[]   @relation("ReviewProducer")
+  reviewsAsReviewee Review[]   @relation("ReviewReviewee")
+  reviewsGiven      Review[]   @relation("ReviewReviewer")
   subscriptionsAsSubscriber Subscription[] @relation("SubscriptionSubscriber")
   subscriptionsAsProducer   Subscription[] @relation("SubscriptionProducer")
   itemRequests ItemRequest[]
+  producerCustomerNotesAsProducer ProducerCustomerNote[] @relation("ProducerCustomerNoteProducer")
+  producerCustomerNotesAsBuyer    ProducerCustomerNote[] @relation("ProducerCustomerNoteBuyer")
+
+  /// Messaging: conversations where this user is a participant
+  conversationsAsA Conversation[] @relation("ConversationUserA")
+  conversationsAsB Conversation[] @relation("ConversationUserB")
+  messagesSent     Message[]
+}
+
+/// Producer-level delivery + pickup settings. One per producer (userId).
+model ProducerProfile {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  offersDelivery   Boolean  @default(false)
+  deliveryFeeCents Int      @default(0)
+  pickupNotes      String?
+  pickupZipCode    String?  /// Optional; fallback to User.zipCode
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Product {
-  id          String   @id @default(cuid())
-  title       String
-  description String
-  price       Float
-  stockImage  String?
-  imageUrl    String?
-  category    String
-  delivery    Boolean
-  pickup      Boolean
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt   DateTime @default(now())
+  id                 String   @id @default(cuid())
+  title              String
+  description        String
+  price              Float
+  stockImage         String?
+  imageUrl           String?
+  category           String
+  delivery           Boolean
+  pickup             Boolean
+  userId             String
+  /// Null = unlimited; 0 = sold out (hide or show "sold out" in UI).
+  quantityAvailable  Int?     @map("quantity_available")
+  createdAt          DateTime @default(now())
 
-  orders       Order[]
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders      Order[]
+  orderItems  OrderItem[]
   eventProducts EventProduct[]
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FULFILLED
+  CANCELED
+  REFUNDED
+}
+
+enum FulfillmentType {
+  PICKUP
+  DELIVERY
 }
 
 model Order {
   id         String   @id @default(cuid())
   buyerId    String
   producerId String
-  productId  String
+  /// Legacy single-product; use orderItems for multi-item. Keep for backward compat.
+  productId  String?
   notes      String?
   paid       Boolean  @default(false)
   viaCash    Boolean  @default(false)
-  pickupDate DateTime
+  status     OrderStatus @default(PENDING)
+  fulfillmentType FulfillmentType @default(PICKUP) @map("fulfillment_type")
+  deliveryFeeCents Int   @default(0) @map("delivery_fee_cents")
+  totalCents Int     @default(0) @map("total_cents")
+  pickupDate DateTime?
+  paidAt     DateTime? @map("paid_at")
+  fulfilledAt DateTime? @map("fulfilled_at")
+  stripeSessionId String? @map("stripe_session_id")
   createdAt  DateTime @default(now())
-  /// After this time, buyer may publish a negative public review (resolution window).
-  resolutionWindowEndsAt DateTime?
-  /// Pickup code / QR for event or pickup (show at confirmation).
-  pickupCode String?
+  resolutionWindowEndsAt DateTime? @map("resolution_window_ends_at")
+  pickupCode String?  @map("pickup_code")
 
-  buyer    User    @relation("OrderBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
-  producer User    @relation("OrderProducer", fields: [producerId], references: [id], onDelete: Cascade)
-  product  Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  reviews  Review[]
+  buyer      User    @relation("OrderBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+  producer   User    @relation("OrderProducer", fields: [producerId], references: [id], onDelete: Cascade)
+  product    Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  orderItems OrderItem[]
+  reviews    Review[]
+}
+
+/// Line items for an order (multi-item cart). Snapshot price at time of order.
+model OrderItem {
+  id             String   @id @default(cuid())
+  orderId        String   @map("order_id")
+  productId      String   @map("product_id")
+  quantity       Int
+  unitPriceCents Int      @map("unit_price_cents")
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 }
 
 // Subscription references producer by userId (producer); add producerId to User if needed later
@@ -109,25 +175,58 @@ model EventProduct {
   @@id([eventId, productId])
 }
 
+/// Reusable for Market (order) and Care (booking). reviewer_id, reviewee_id, type, rating, comment.
+enum ReviewType {
+  MARKET
+  CARE
+}
+
 model Review {
-  id          String   @id @default(cuid())
+  id          String     @id @default(cuid())
   reviewerId  String
-  producerId  String
-  orderId     String
-  privateFlag Boolean  @default(true)
+  revieweeId  String     /// Generic: who is being reviewed (producer for market, caregiver/owner for care).
+  producerId  String     /// Kept for backward compat; equals revieweeId for MARKET. Prefer revieweeId for new code.
+  type        ReviewType @default(MARKET)
+  orderId     String?    /// Market: link to Order. Null for CARE.
+  careBookingId String?  @map("care_booking_id") /// Care: link to booking. Null for MARKET.
+  privateFlag Boolean    @default(true)
   comment     String
-  resolved    Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  /// Structured rating 1–5 for public display (short + structured, no rant walls).
-  rating           Int?
-  /// Producer response: fix/refund/replace (visible alongside review).
+  resolved    Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  rating      Int?
   producerResponse String?
-  /// Admin moderation: hide abusive or off-topic content.
-  hiddenByAdmin    Boolean   @default(false)
+  hiddenByAdmin    Boolean @default(false)
 
   reviewer User  @relation("ReviewReviewer", fields: [reviewerId], references: [id], onDelete: Cascade)
   producer User  @relation("ReviewProducer", fields: [producerId], references: [id], onDelete: Cascade)
-  order    Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  reviewee User  @relation("ReviewReviewee", fields: [revieweeId], references: [id], onDelete: Cascade)
+  order    Order? @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+/// Shared messaging: Buyer↔Producer (Market), Owner↔Caregiver (Care). One conversation per (userA, userB, optional order/booking).
+model Conversation {
+  id             String    @id @default(cuid())
+  userAId        String
+  userBId        String
+  orderId        String?   /// Market: thread for this order (optional).
+  careBookingId  String?   @map("care_booking_id") /// Care: thread for this booking (optional).
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  userA    User     @relation("ConversationUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB    User     @relation("ConversationUserB", fields: [userBId], references: [id], onDelete: Cascade)
+  messages Message[]
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  senderId       String
+  body           String
+  createdAt      DateTime     @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
 }
 
 model Subscription {
@@ -153,4 +252,19 @@ model ItemRequest {
   createdAt   DateTime @default(now())
 
   requester User @relation(fields: [requesterId], references: [id], onDelete: Cascade)
+}
+
+/// Tier 2: optional notes per producer–buyer (e.g. "CSA pickup", "egg customer"). Ownership, not marketing.
+model ProducerCustomerNote {
+  id         String   @id @default(cuid())
+  producerId String
+  buyerId    String
+  note       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  producer User @relation("ProducerCustomerNoteProducer", fields: [producerId], references: [id], onDelete: Cascade)
+  buyer    User @relation("ProducerCustomerNoteBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+
+  @@unique([producerId, buyerId])
 }

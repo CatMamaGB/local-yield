@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Playfair_Display, Inter } from "next/font/google";
+import { ClerkProvider } from "@clerk/nextjs";
 import { Navbar } from "@/components/Navbar";
+import { CartProvider } from "@/contexts/CartContext";
 import { getCurrentUser } from "@/lib/auth";
 import "./globals.css";
 
@@ -30,20 +32,29 @@ export const viewport: Viewport = {
 };
 
 // getCurrentUser() returns null for logged-out users (when real auth is wired); never throws. No auth forced on any page.
-// Optional later: (public)/layout without user fetch + (app)/layout with user fetch for maximally static / and /about.
 export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   const user = await getCurrentUser();
+  const clerkPublishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  const content = (
+    <CartProvider>
+      <Navbar user={user} />
+      {children}
+    </CartProvider>
+  );
   return (
     <html lang="en">
       <body
         className={`${playfairDisplay.variable} ${inter.variable} antialiased`}
       >
-        <Navbar user={user} />
-        {children}
+        {clerkPublishableKey ? (
+          <ClerkProvider publishableKey={clerkPublishableKey}>{content}</ClerkProvider>
+        ) : (
+          content
+        )}
       </body>
     </html>
   );

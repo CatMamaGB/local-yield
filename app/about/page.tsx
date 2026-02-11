@@ -139,6 +139,15 @@ export default function AboutPage() {
           </p>
         </section>
 
+        <section className="mt-12">
+          <h2 className="font-display text-xl font-semibold text-brand">For farmers market managers</h2>
+          <p className="mt-2 text-brand/90">
+            We&apos;re not your competition — we&apos;re infrastructure. We help vendors sell when they&apos;re not at the market,
+            help smaller vendors grow into market-ready sellers, and give them simple tools without taking them away from you.
+            Co-branded pages, vendor schedules, and waitlist referrals can turn markets into allies.
+          </p>
+        </section>
+
         <section className="mt-12 flex flex-wrap gap-4">
           <Link
             href="/market/browse"

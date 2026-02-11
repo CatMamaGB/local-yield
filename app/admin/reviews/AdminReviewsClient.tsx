@@ -17,7 +17,9 @@ export interface AdminReviewRow {
   createdAt: string;
   reviewerName: string;
   producerName: string;
-  orderId: string;
+  /** Order id (market) or care booking id; null for legacy/CARE without link. */
+  orderId: string | null;
+  type?: "MARKET" | "CARE";
 }
 
 export function AdminReviewsClient({

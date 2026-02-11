@@ -55,7 +55,8 @@ export default async function AdminReviewsPage({
             createdAt: r.createdAt.toISOString(),
             reviewerName: r.reviewer.name ?? r.reviewer.email,
             producerName: r.producer.name ?? r.producer.id,
-            orderId: r.order.id,
+            orderId: r.order?.id ?? r.careBookingId ?? null,
+            type: r.type,
           }))}
           includeHidden={includeHidden}
         />

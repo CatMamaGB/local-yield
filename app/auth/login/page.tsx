@@ -1,40 +1,32 @@
 /**
- * Login page. Phase 1: Coming Soon. Wire to Clerk or Supabase when adding auth.
+ * Login: Clerk SignIn when configured; otherwise dev AuthForm (role picker → cookie).
  */
 
-import Link from "next/link";
+import { SignIn } from "@clerk/nextjs";
+import { AuthForm } from "@/components/AuthForm";
+
+const clerkConfigured = Boolean(
+  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY
+);
 
 export default function LoginPage() {
+  if (clerkConfigured) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-brand-light px-4">
+        <SignIn
+          appearance={{
+            variables: { colorPrimary: "#5D4524" },
+          }}
+          afterSignInUrl="/dashboard"
+          signUpUrl="/auth/signup"
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-brand-light px-4">
-      <div className="w-full max-w-sm rounded-xl border border-brand/20 bg-white p-8 shadow-sm">
-        <h1 className="font-display text-2xl font-semibold text-brand">
-          Log in
-        </h1>
-        <p className="mt-3 text-sm text-brand/80">
-          Sign-in is not set up yet. We’re focusing on browsing and listing first.
-        </p>
-        <p className="mt-2 text-sm font-medium text-brand">
-          Coming Soon
-        </p>
-        <p className="mt-4 text-xs text-brand/60">
-          Auth will be added when producers need to post products and manage dashboards.
-        </p>
-        <div className="mt-6 flex flex-col gap-3">
-          <Link
-            href="/market/browse"
-            className="rounded bg-brand py-2.5 text-center font-medium text-white hover:bg-brand/90"
-          >
-            Browse local goods
-          </Link>
-          <Link
-            href="/auth/signup"
-            className="text-center text-sm text-brand-accent hover:underline"
-          >
-            Create an account (coming soon)
-          </Link>
-        </div>
-      </div>
+      <AuthForm mode="sign-in" />
     </div>
   );
 }

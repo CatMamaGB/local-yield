@@ -28,12 +28,14 @@ export function DemandNearYou({ producerZip, radiusMiles = 25 }: DemandNearYouPr
   useEffect(() => {
     const zip = producerZip.trim().slice(0, 5);
     if (!zip) {
-      setLoading(false);
+      queueMicrotask(() => setLoading(false));
       return;
     }
     let cancelled = false;
-    setLoading(true);
-    setError(null);
+    queueMicrotask(() => {
+      setLoading(true);
+      setError(null);
+    });
     fetch(`/api/item-requests?zip=${encodeURIComponent(zip)}&radius=${radiusMiles}`)
       .then((res) => res.json())
       .then((data) => {
