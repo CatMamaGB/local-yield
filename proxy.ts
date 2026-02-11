@@ -20,7 +20,7 @@ const withClerk = clerkMiddleware(async (auth, req) => {
   }
 });
 
-export default async function middleware(req: NextRequest, event: NextFetchEvent) {
+export default async function proxy(req: NextRequest, event: NextFetchEvent) {
   if (!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || !process.env.CLERK_SECRET_KEY) {
     return NextResponse.next();
   }
