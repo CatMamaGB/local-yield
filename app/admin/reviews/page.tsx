@@ -40,6 +40,18 @@ export default async function AdminReviewsPage({
           >
             Listings
           </Link>
+          <Link
+            href="/admin/custom-categories"
+            className="text-brand-accent hover:underline"
+          >
+            Custom Category Review
+          </Link>
+          <Link
+            href="/admin/flagged-reviews"
+            className="rounded bg-amber-100 px-2 py-1 text-sm font-medium text-amber-800 hover:bg-amber-200"
+          >
+            Flagged reviews
+          </Link>
         </div>
         <p className="mt-2 text-brand/80">
           Hide abusive or off-topic reviews. Resolution window applies to negative public reviews.
@@ -52,6 +64,9 @@ export default async function AdminReviewsPage({
             producerResponse: r.producerResponse,
             resolved: r.resolved,
             hiddenByAdmin: r.hiddenByAdmin,
+            flaggedForAdmin: (r as { flaggedForAdmin?: boolean }).flaggedForAdmin ?? false,
+            flaggedAt: (r as { flaggedAt?: Date | null }).flaggedAt?.toISOString() ?? null,
+            privateFlag: (r as { privateFlag?: boolean }).privateFlag ?? true,
             createdAt: r.createdAt.toISOString(),
             reviewerName: r.reviewer.name ?? r.reviewer.email,
             producerName: r.producer.name ?? r.producer.id,

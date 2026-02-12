@@ -8,6 +8,8 @@ import { auth as clerkAuth, currentUser } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
 import { prisma } from "./prisma";
 import type { Role } from "@/types";
+import type { PrimaryMode } from "./redirects";
+import { PlatformUse, Role as PrismaRole } from "@prisma/client";
 
 export interface SessionUser {
   id: string;
@@ -15,6 +17,7 @@ export interface SessionUser {
   name: string | null;
   role: Role;
   zipCode: string;
+  primaryMode?: PrimaryMode | null;
   isProducer?: boolean;
   isBuyer?: boolean;
   isCaregiver?: boolean;
@@ -31,6 +34,7 @@ const STUB_BUYER: SessionUser = {
   name: "Test Buyer",
   role: "BUYER",
   zipCode: "90210",
+  primaryMode: "MARKET",
   isBuyer: true,
   isProducer: false,
   isCaregiver: false,
@@ -43,6 +47,7 @@ const STUB_PRODUCER: SessionUser = {
   name: "Test Producer",
   role: "PRODUCER",
   zipCode: "90210",
+  primaryMode: "SELL",
   isProducer: true,
   isBuyer: false,
   isCaregiver: false,
@@ -55,8 +60,9 @@ const STUB_ADMIN: SessionUser = {
   name: "Test Admin",
   role: "ADMIN",
   zipCode: "90210",
+  primaryMode: "SELL",
   isProducer: false,
-  isBuyer: true,
+  isBuyer: false,
   isCaregiver: false,
   isHomesteadOwner: false,
 };
@@ -73,59 +79,113 @@ function isClerkConfigured(): boolean {
 
 /**
  * Sync Clerk user to DB: find by clerkId or create. Returns DB User as SessionUser.
+ * For new users, zipCode is set to DEFAULT_ZIP ("00000") to force onboarding flow.
+ * Clerk metadata can be checked here if ZIP is stored in publicMetadata/unsafeMetadata.
  */
-async function syncClerkUserToDb(clerkId: string, email: string, name: string | null): Promise<SessionUser | null> {
+async function syncClerkUserToDb(
+  clerkId: string,
+  email: string,
+  name: string | null,
+  clerkUser?: { publicMetadata?: Record<string, any>; unsafeMetadata?: Record<string, any> }
+): Promise<SessionUser | null> {
   const existing = await prisma.user.findUnique({
     where: { clerkId },
+    include: { userRoles: true },
   });
   const emailSafe = email || `${clerkId}@clerk.local`;
-  if (existing) {
-    const updated = await prisma.user.update({
-      where: { id: existing.id },
-      data: {
-        email: emailSafe,
-        name: name ?? existing.name,
-      },
-    });
-    return dbUserToSessionUser(updated);
+  
+  // Try to extract ZIP from Clerk metadata (if available)
+  let zipFromClerk: string | null = null;
+  if (clerkUser) {
+    const zip = clerkUser.publicMetadata?.zipCode || clerkUser.unsafeMetadata?.zipCode;
+    if (zip && /^\d{5}$/.test(String(zip))) {
+      zipFromClerk = String(zip);
+    }
   }
+
+  if (existing) {
+    const updateData: { email: string; name?: string | null; zipCode?: string } = {
+      email: emailSafe,
+      name: name ?? existing.name,
+    };
+    
+    // Only update ZIP if it's still the default and we have a value from Clerk
+    if (existing.zipCode === DEFAULT_ZIP && zipFromClerk) {
+      updateData.zipCode = zipFromClerk;
+    }
+    
+    await prisma.user.update({
+      where: { id: existing.id },
+      data: updateData,
+    });
+    const updated = await prisma.user.findUnique({
+      where: { id: existing.id },
+      include: { userRoles: true },
+    });
+    return updated ? dbUserToSessionUser(updated) : dbUserToSessionUser(existing);
+  }
+  
+  // New user: use ZIP from Clerk metadata if available, otherwise DEFAULT_ZIP to force onboarding
   const created = await prisma.user.create({
     data: {
       clerkId,
       email: emailSafe,
       name: name ?? null,
-      zipCode: DEFAULT_ZIP,
-      role: "BUYER",
+      phone: "",
+      zipCode: zipFromClerk ?? DEFAULT_ZIP,
+      platformUse: PlatformUse.OTHER,
+      role: PrismaRole.BUYER,
       isBuyer: true,
       isProducer: false,
       isCaregiver: false,
       isHomesteadOwner: false,
     },
   });
-  return dbUserToSessionUser(created);
+  await prisma.userRole.create({ data: { userId: created.id, role: PrismaRole.BUYER } });
+  const withRoles = await prisma.user.findUnique({
+    where: { id: created.id },
+    include: { userRoles: true },
+  });
+  return withRoles ? dbUserToSessionUser(withRoles) : dbUserToSessionUser(created);
 }
 
+/** Derive role flags from userRoles (source of truth); fall back to legacy User columns if no roles. */
 function dbUserToSessionUser(u: {
   id: string;
   email: string;
   name: string | null;
-  role: "BUYER" | "PRODUCER" | "ADMIN";
+  role: "BUYER" | "PRODUCER" | "ADMIN" | "CAREGIVER" | "CARE_SEEKER";
   zipCode: string;
+  primaryMode?: string | null;
   isProducer: boolean;
   isBuyer: boolean;
   isCaregiver: boolean;
   isHomesteadOwner: boolean;
+  userRoles?: { role: string }[];
 }): SessionUser {
+  const roles = u.userRoles?.map((r) => r.role) ?? [];
+  const isProducer = roles.includes("PRODUCER") || roles.includes("ADMIN") || u.isProducer;
+  const isBuyer = roles.includes("BUYER") || u.isBuyer;
+  const isCaregiver = roles.includes("CAREGIVER") || u.isCaregiver;
+  const isHomesteadOwner = roles.includes("CARE_SEEKER") || u.isHomesteadOwner;
+  const primaryRole: Role = roles.includes("ADMIN")
+    ? "ADMIN"
+    : roles.includes("PRODUCER")
+      ? "PRODUCER"
+      : u.role === "CAREGIVER" || u.role === "CARE_SEEKER"
+        ? "BUYER"
+        : (u.role as Role);
   return {
     id: u.id,
     email: u.email,
     name: u.name,
-    role: u.role,
+    role: primaryRole,
     zipCode: u.zipCode,
-    isProducer: u.isProducer,
-    isBuyer: u.isBuyer,
-    isCaregiver: u.isCaregiver,
-    isHomesteadOwner: u.isHomesteadOwner,
+    primaryMode: (u.primaryMode as PrimaryMode) ?? undefined,
+    isProducer,
+    isBuyer,
+    isCaregiver,
+    isHomesteadOwner,
   };
 }
 
@@ -141,11 +201,24 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     const name = clerkUser?.firstName || clerkUser?.lastName
       ? [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || null
       : clerkUser?.username ?? null;
-    return syncClerkUserToDb(userId, email, name);
+    return syncClerkUserToDb(userId, email, name, clerkUser ?? undefined);
   }
 
   if (process.env.NODE_ENV === "development") {
     const cookieStore = await cookies();
+    const devUserId = cookieStore.get("__dev_user_id")?.value;
+    if (devUserId) {
+      const dbUser = await prisma.user.findUnique({
+        where: { id: devUserId },
+        include: { userRoles: true },
+      });
+      if (dbUser) {
+        const session = dbUserToSessionUser(dbUser);
+        const devZip = cookieStore.get("__dev_zip")?.value?.trim().slice(0, 5);
+        if (devZip && /^\d{5}$/.test(devZip)) session.zipCode = devZip;
+        return session;
+      }
+    }
     const devUser = cookieStore.get("__dev_user")?.value as Role | undefined;
     const devZip = cookieStore.get("__dev_zip")?.value?.trim().slice(0, 5);
     if (devUser && (devUser === "BUYER" || devUser === "PRODUCER" || devUser === "ADMIN")) {
@@ -169,7 +242,9 @@ export async function requireAuth(): Promise<SessionUser> {
 
 export async function requireProducerOrAdmin(): Promise<SessionUser> {
   const user = await requireAuth();
-  if (user.role !== "PRODUCER" && user.role !== "ADMIN") {
+  const canAccessProducer =
+    user.role === "PRODUCER" || user.role === "ADMIN" || user.isProducer === true;
+  if (!canAccessProducer) {
     throw new Error("Forbidden");
   }
   return user;
@@ -177,8 +252,18 @@ export async function requireProducerOrAdmin(): Promise<SessionUser> {
 
 export async function requireAdmin(): Promise<SessionUser> {
   const user = await requireAuth();
-  if (user.role !== "ADMIN") {
-    throw new Error("Forbidden");
-  }
+  if (user.role !== "ADMIN") throw new Error("Forbidden");
+  return user;
+}
+
+export async function requireCaregiverOrAdmin(): Promise<SessionUser> {
+  const user = await requireAuth();
+  if (user.role !== "ADMIN" && user.isCaregiver !== true) throw new Error("Forbidden");
+  return user;
+}
+
+export async function requireCareSeekerOrAdmin(): Promise<SessionUser> {
+  const user = await requireAuth();
+  if (user.role !== "ADMIN" && user.isHomesteadOwner !== true) throw new Error("Forbidden");
   return user;
 }

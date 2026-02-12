@@ -32,27 +32,16 @@ export function AddToCartButton({
 
   function handleAdd() {
     setAdding(true);
-    if (singleProducerId && singleProducerId !== producerId) {
-      addItem({
-        productId,
-        producerId,
-        title,
-        price,
-        unitPriceCents,
-        imageUrl,
-        quantity: 1,
-      });
-    } else {
-      addItem({
-        productId,
-        producerId,
-        title,
-        price,
-        unitPriceCents,
-        imageUrl,
-        quantity: 1,
-      });
-    }
+    // addItem already handles producer switching internally (replaces cart if different producer)
+    addItem({
+      productId,
+      producerId,
+      title,
+      price,
+      unitPriceCents,
+      imageUrl,
+      quantity: 1,
+    });
     setAdding(false);
   }
 

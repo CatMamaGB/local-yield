@@ -1,7 +1,7 @@
 /**
  * Care — caregiver profile. Placeholder for later.
  * Path: /care/caregiver/[id] (when Care is launched).
- * When Care is disabled (feature flag), redirects to /care.
+ * When Care is disabled (feature flag), redirects to /market.
  */
 
 import Link from "next/link";
@@ -13,7 +13,7 @@ interface CaregiverPageProps {
 }
 
 export default async function CaregiverPage({ params }: CaregiverPageProps) {
-  if (!isCareEnabled()) redirect("/care");
+  if (!isCareEnabled()) redirect("/market");
   const { id } = await params;
   return (
     <div className="min-h-screen bg-brand-light">

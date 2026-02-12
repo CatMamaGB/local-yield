@@ -1,6 +1,6 @@
 /**
- * Market — producer storefront. Public shop page for a producer.
- * Loads producer and products by id from DB.
+ * Market — producer storefront (business page). Public shop page for a producer.
+ * Loads producer, profile, upcoming events, and products.
  */
 
 import Link from "next/link";
@@ -30,6 +30,12 @@ export default async function ShopPage({ params }: ShopPageProps) {
 
   if (!producer) notFound();
 
+  const upcomingEvents = await prisma.event.findMany({
+    where: { userId: id, eventDate: { gte: new Date() } },
+    orderBy: { eventDate: "asc" },
+    take: 10,
+  });
+
   const user = await getCurrentUser();
   const viewerZip = user?.zipCode;
   const distanceMiles =
@@ -56,6 +62,19 @@ export default async function ShopPage({ params }: ShopPageProps) {
             offersDelivery={offersDelivery}
             deliveryFeeCents={deliveryFeeCents}
             pickup={anyPickup}
+            profileImageUrl={profile?.profileImageUrl ?? null}
+            aboutUs={profile?.aboutUs ?? null}
+            story={profile?.story ?? null}
+            upcomingEvents={upcomingEvents.map((e) => ({
+              id: e.id,
+              name: e.name,
+              location: e.location,
+              eventDate: e.eventDate.toISOString(),
+              eventHours: e.eventHours,
+            }))}
+            contactEmail={profile?.acceptInAppMessagesOnly ? null : profile?.contactEmail ?? null}
+            generalLocation={profile?.generalLocation ?? null}
+            availabilityHours={profile?.availabilityHours ?? null}
           />
         </div>
         <div className="mt-8">

@@ -18,16 +18,31 @@ export function CheckoutClient() {
   const [error, setError] = useState<string | null>(null);
   const [deliveryFeeCents, setDeliveryFeeCents] = useState(0);
   const [offersDelivery, setOffersDelivery] = useState(false);
+  const [deliveryFeeError, setDeliveryFeeError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!singleProducerId || items.length === 0) return;
-    fetch(`/api/shop/${singleProducerId}/delivery`)
-      .then((r) => r.json())
-      .then((data) => {
+    
+    async function fetchDeliveryInfo() {
+      try {
+        const res = await fetch(`/api/shop/${singleProducerId}/delivery`);
+        if (!res.ok) {
+          throw new Error("Failed to fetch delivery information");
+        }
+        const data = await res.json();
         setOffersDelivery(data.offersDelivery ?? false);
         setDeliveryFeeCents(data.deliveryFeeCents ?? 0);
-      })
-      .catch(() => {});
+        setDeliveryFeeError(null);
+      } catch (err) {
+        console.error("Delivery fee fetch error:", err);
+        setDeliveryFeeError("Unable to load delivery options");
+        // Default to pickup if delivery fetch fails
+        setOffersDelivery(false);
+        setDeliveryFeeCents(0);
+      }
+    }
+
+    fetchDeliveryInfo();
   }, [singleProducerId, items.length]);
 
   if (itemCount === 0) {
@@ -55,6 +70,7 @@ export function CheckoutClient() {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
+    
     try {
       const res = await fetch("/api/orders", {
         method: "POST",
@@ -70,14 +86,25 @@ export function CheckoutClient() {
           notes: notes.trim() || undefined,
         }),
       });
+      
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Checkout failed");
-      clearCart();
-      router.push(`/market/order-confirmation/${data.orderId}`);
-      router.refresh();
+      
+      // Check for success response format: { ok: true, data: { orderId, pickupCode } }
+      if (!res.ok || !data.ok) {
+        const errorMessage = data.error || data.message || "Checkout failed";
+        throw new Error(errorMessage);
+      }
+
+      // Only clear cart after successful order creation
+      if (data.ok && data.data?.orderId) {
+        clearCart();
+        router.push(`/market/order-confirmation/${data.data.orderId}`);
+        router.refresh();
+      } else {
+        throw new Error("Invalid response from server");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Checkout failed");
-    } finally {
       setSubmitting(false);
     }
   }
@@ -116,7 +143,12 @@ export function CheckoutClient() {
           <span>{formatPrice(totalCents / 100)}</span>
         </p>
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {deliveryFeeError && fulfillmentType === "DELIVERY" && (
+        <p className="text-sm text-yellow-600" role="alert">
+          {deliveryFeeError}. Please contact the producer for delivery details.
+        </p>
+      )}
+      {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
       <p className="text-sm text-brand/70">
         You’ll pay the producer at pickup or delivery (cash or as arranged).
       </p>

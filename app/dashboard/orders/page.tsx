@@ -6,60 +6,61 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { getOrdersForBuyer, getOrdersForProducer } from "@/lib/orders";
+import { getReviewByOrderForBuyer } from "@/lib/reviews";
 import { formatDate } from "@/lib/utils";
 import { OrderStatusBadge } from "@/components/OrderStatusBadge";
 import { ProducerOrdersClient } from "./ProducerOrdersClient";
+import { BuyerOrdersClient } from "./BuyerOrdersClient";
 
 export default async function DashboardOrdersPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/auth/login");
 
-  const isProducer = user.role === "PRODUCER" || user.role === "ADMIN";
+  const isProducer = user.role === "PRODUCER" || user.role === "ADMIN" || user.isProducer === true;
   const buyerOrders = await getOrdersForBuyer(user.id);
   const producerOrders = await getOrdersForProducer(user.id);
 
   if (!isProducer) {
+    const ordersWithReviews = await Promise.all(
+      buyerOrders.map(async (o) => {
+        const title =
+          o.orderItems.length > 0
+            ? o.orderItems.length === 1
+              ? o.orderItems[0].product.title
+              : `${o.orderItems.length} items`
+            : o.product?.title ?? "Order";
+        const review = await getReviewByOrderForBuyer(user.id, o.id);
+        return {
+          id: o.id,
+          title,
+          producerName: o.producer.name ?? null,
+          pickupDate: o.pickupDate,
+          status: o.status,
+          pickupCode: o.pickupCode,
+          createdAt: o.createdAt.toISOString(),
+          review: review
+            ? {
+                id: review.id,
+                comment: review.comment,
+                rating: review.rating,
+                privateFlag: review.privateFlag,
+                resolved: review.resolved,
+                createdAt: review.createdAt.toISOString(),
+                adminGuidance: review.adminGuidance,
+              }
+            : null,
+        };
+      })
+    );
     return (
       <div className="min-h-screen bg-brand-light">
         <div className="mx-auto max-w-4xl px-4 py-8">
           <h1 className="font-display text-2xl font-semibold text-brand">Your orders</h1>
-          <p className="mt-2 text-brand/80">Orders you’ve placed. Show your pickup code at pickup.</p>
+          <p className="mt-2 text-brand/80">Orders you’ve placed. Show your pickup code at pickup. Leave or update reviews below.</p>
           {buyerOrders.length === 0 ? (
             <p className="mt-6 text-brand/70">No orders yet. <Link href="/market/browse" className="text-brand-accent hover:underline">Browse</Link> to order.</p>
           ) : (
-            <ul className="mt-6 space-y-4">
-              {buyerOrders.map((o) => {
-                const title = o.orderItems.length > 0
-                  ? o.orderItems.length === 1
-                    ? o.orderItems[0].product.title
-                    : `${o.orderItems.length} items`
-                  : o.product?.title ?? "Order";
-                return (
-                <li
-                  key={o.id}
-                  className="rounded-xl border border-brand/20 bg-white p-4 shadow-sm"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <p className="font-display font-semibold text-brand">{title}</p>
-                      <p className="text-sm text-brand/70">
-                        {o.producer.name ?? "Producer"} · {o.pickupDate ? `Pickup ${formatDate(o.pickupDate)}` : "Pickup TBD"}
-                      </p>
-                      <div className="mt-2">
-                        <OrderStatusBadge status={o.status} />
-                      </div>
-                    </div>
-                    {o.pickupCode && (
-                      <div className="rounded-lg border-2 border-dashed border-brand/30 bg-brand-light/50 px-4 py-2 text-center">
-                        <p className="text-xs font-medium text-brand/70 uppercase tracking-wider">Pickup code</p>
-                        <p className="font-mono text-xl font-bold text-brand">{o.pickupCode}</p>
-                        <p className="text-xs text-brand/60">Show at pickup</p>
-                      </div>
-                    )}
-                  </div>
-                </li>
-              ); })}
-            </ul>
+            <BuyerOrdersClient ordersWithReviews={ordersWithReviews} />
           )}
         </div>
       </div>

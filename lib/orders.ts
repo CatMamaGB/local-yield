@@ -3,6 +3,7 @@
  * Sets resolution window (48h) and pickup code for event/pickup; supports card (Stripe) and cash.
  */
 
+import type { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 
 export type PaymentMethod = "cash" | "card";
@@ -39,55 +40,169 @@ export interface CreateOrderInput {
 }
 
 /**
- * Create an order. Sets resolutionWindowEndsAt from pickupDate + 48h, generates pickupCode.
- * Supports single product (productId) or multi-item (items). For single product, totalCents derived from product if omitted.
+ * Custom error classes for order creation
  */
-export async function createOrder(input: CreateOrderInput): Promise<{ orderId: string; pickupCode: string } | null> {
-  const pickupDate = input.pickupDate ? (input.pickupDate instanceof Date ? input.pickupDate : new Date(input.pickupDate)) : null;
-  const resolutionWindowEndsAt = pickupDate ? new Date(pickupDate.getTime() + RESOLUTION_WINDOW_HOURS * 60 * 60 * 1000) : null;
-  const pickupCode = generatePickupCode();
-  const fulfillmentType = input.fulfillmentType ?? "PICKUP";
-  const deliveryFeeCents = input.deliveryFeeCents ?? 0;
+export class OrderCreationError extends Error {
+  constructor(message: string, public code: string) {
+    super(message);
+    this.name = "OrderCreationError";
+  }
+}
 
-  let totalCents = input.totalCents ?? 0;
-  let orderItemsCreate: { productId: string; quantity: number; unitPriceCents: number }[] | undefined;
-
-  if (input.items?.length) {
-    orderItemsCreate = input.items.map((item) => ({
-      productId: item.productId,
-      quantity: item.quantity,
-      unitPriceCents: item.unitPriceCents,
-    }));
-    if (totalCents === 0) {
-      totalCents = orderItemsCreate.reduce((sum, i) => sum + i.quantity * i.unitPriceCents, 0) + deliveryFeeCents;
-    }
-  } else if (input.productId) {
-    const product = await prisma.product.findUnique({ where: { id: input.productId }, select: { price: true } });
-    if (!product) return null;
-    const unitPriceCents = Math.round(product.price * 100);
-    if (totalCents === 0) totalCents = unitPriceCents + deliveryFeeCents;
-    orderItemsCreate = [{ productId: input.productId, quantity: 1, unitPriceCents }];
+/**
+ * Create an order. Sets resolutionWindowEndsAt from pickupDate + 48h (or now + 48h if no pickupDate), generates pickupCode.
+ * Supports single product (productId) or multi-item (items). For single product, totalCents derived from product if omitted.
+ * 
+ * Validates:
+ * - Users exist (buyer and producer)
+ * - Products exist and belong to producer
+ * - Inventory availability (if quantityAvailable is set)
+ * - Prices from database (snapshot stored in OrderItem)
+ * 
+ * Uses Prisma transaction for atomicity.
+ */
+export async function createOrder(input: CreateOrderInput): Promise<{ orderId: string; pickupCode: string }> {
+  // 3.1 Validate top-level input
+  if (!input.buyerId || !input.producerId) {
+    throw new OrderCreationError("buyerId and producerId are required", "INVALID_INPUT");
   }
 
-  const order = await prisma.order.create({
-    data: {
-      buyerId: input.buyerId,
-      producerId: input.producerId,
-      productId: input.productId ?? input.items?.[0]?.productId ?? null,
-      notes: input.notes ?? null,
-      paid: input.paymentMethod === "card",
-      viaCash: input.paymentMethod === "cash",
-      status: "PENDING",
-      fulfillmentType,
-      deliveryFeeCents,
-      totalCents,
-      pickupDate,
-      resolutionWindowEndsAt,
-      pickupCode,
-      orderItems: orderItemsCreate?.length ? { create: orderItemsCreate } : undefined,
-    },
+  if (!input.items?.length && !input.productId) {
+    throw new OrderCreationError("Either items array or productId is required", "INVALID_INPUT");
+  }
+
+  // Normalize items array
+  const items = input.items?.length
+    ? input.items
+    : input.productId
+      ? [{ productId: input.productId, quantity: 1, unitPriceCents: 0 }]
+      : [];
+
+  if (items.length === 0) {
+    throw new OrderCreationError("At least one item is required", "INVALID_INPUT");
+  }
+
+  // Use transaction for atomicity
+  return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    // 3.2 Validate users exist (producer: legacy isProducer; prefer userRoles: { some: { role: "PRODUCER" } } when refactoring)
+    const [buyer, producer] = await Promise.all([
+      tx.user.findUnique({ where: { id: input.buyerId } }),
+      tx.user.findUnique({ where: { id: input.producerId, isProducer: true } }),
+    ]);
+
+    if (!buyer) {
+      throw new OrderCreationError(`Buyer not found: ${input.buyerId}`, "BUYER_NOT_FOUND");
+    }
+
+    if (!producer) {
+      throw new OrderCreationError(`Producer not found: ${input.producerId}`, "PRODUCER_NOT_FOUND");
+    }
+
+    // 3.3 Validate products exist + belong to producer
+    const productIds = items.map((item) => item.productId);
+    const products = await tx.product.findMany({
+      where: {
+        id: { in: productIds },
+        userId: input.producerId, // Ensure products belong to producer
+      },
+      select: {
+        id: true,
+        price: true,
+        quantityAvailable: true,
+      },
+    });
+
+    type ProductInfo = { id: string; price: number; quantityAvailable: number | null };
+    const productsTyped = products as ProductInfo[];
+    
+    if (productsTyped.length !== productIds.length) {
+      const foundIds = new Set<string>(productsTyped.map((p: ProductInfo) => p.id));
+      const missingIds = productIds.filter((id) => !foundIds.has(id));
+      throw new OrderCreationError(
+        `Products not found or not owned by producer: ${missingIds.join(", ")}`,
+        "PRODUCT_NOT_FOUND"
+      );
+    }
+
+    // Create product lookup map
+    const productMap = new Map<string, ProductInfo>(productsTyped.map((p: ProductInfo) => [p.id, p]));
+
+    // 3.4 Enforce price source: Always price from DB at time of order creation
+    // Store snapshot into OrderItem.unitPriceCents
+    const orderItemsCreate: { productId: string; quantity: number; unitPriceCents: number }[] = [];
+    let totalCents = input.totalCents ?? 0;
+
+    for (const item of items) {
+      const product: ProductInfo | undefined = productMap.get(item.productId);
+      if (!product) {
+        throw new OrderCreationError(`Product not found: ${item.productId}`, "PRODUCT_NOT_FOUND");
+      }
+
+      // 3.5 Enforce inventory
+      if (product.quantityAvailable !== null) {
+        // null means unlimited, so only check if quantityAvailable is set
+        if (product.quantityAvailable < item.quantity) {
+          throw new OrderCreationError(
+            `Insufficient stock for product ${item.productId}. Available: ${product.quantityAvailable}, Requested: ${item.quantity}`,
+            "OUT_OF_STOCK"
+          );
+        }
+      }
+
+      // Price from database (snapshot)
+      const unitPriceCents = Math.round(product.price * 100);
+      orderItemsCreate.push({
+        productId: item.productId,
+        quantity: item.quantity,
+        unitPriceCents,
+      });
+    }
+
+    // Calculate total if not provided
+    if (totalCents === 0) {
+      totalCents = orderItemsCreate.reduce((sum, i) => sum + i.quantity * i.unitPriceCents, 0) + (input.deliveryFeeCents ?? 0);
+    }
+
+    // 3.7 Fix resolution window logic: Always set it (use now + 48h if no pickupDate)
+    const pickupDate = input.pickupDate
+      ? input.pickupDate instanceof Date
+        ? input.pickupDate
+        : new Date(input.pickupDate)
+      : null;
+
+    // Set resolution window: if pickupDate exists, use it; otherwise use now + 48h
+    const resolutionWindowEndsAt = pickupDate
+      ? new Date(pickupDate.getTime() + RESOLUTION_WINDOW_HOURS * 60 * 60 * 1000)
+      : new Date(Date.now() + RESOLUTION_WINDOW_HOURS * 60 * 60 * 1000);
+
+    const pickupCode = generatePickupCode();
+    const fulfillmentType = input.fulfillmentType ?? "PICKUP";
+    const deliveryFeeCents = input.deliveryFeeCents ?? 0;
+
+    // Create order with all items
+    const order = await tx.order.create({
+      data: {
+        buyerId: input.buyerId,
+        producerId: input.producerId,
+        productId: input.productId ?? items[0]?.productId ?? null, // Legacy field
+        notes: input.notes ?? null,
+        paid: input.paymentMethod === "card",
+        viaCash: input.paymentMethod === "cash",
+        status: "PENDING",
+        fulfillmentType,
+        deliveryFeeCents,
+        totalCents,
+        pickupDate,
+        resolutionWindowEndsAt,
+        pickupCode,
+        orderItems: {
+          create: orderItemsCreate,
+        },
+      },
+    });
+
+    return { orderId: order.id, pickupCode };
   });
-  return { orderId: order.id, pickupCode };
 }
 
 /**

@@ -41,6 +41,8 @@ export async function createReview(input: CreateReviewInput) {
   const isPublic = input.privateFlag === false;
   const isNegative = input.rating != null && input.rating <= NEGATIVE_RATING_THRESHOLD;
   const orderId = input.orderId ?? undefined;
+  const reviewType = input.type ?? "MARKET";
+  
   if (isPublic && isNegative && orderId) {
     const allowed = await canPublishNegativePublicReview(orderId);
     if (!allowed) {
@@ -49,13 +51,16 @@ export async function createReview(input: CreateReviewInput) {
       );
     }
   }
+  
+  // producerId is required in schema; use revieweeId when not provided (CARE: reviewee is caregiver; MARKET: reviewee is producer)
   const producerId = input.producerId ?? input.revieweeId;
+
   return prisma.review.create({
     data: {
       reviewerId: input.reviewerId,
       revieweeId: input.revieweeId,
       producerId,
-      type: input.type ?? "MARKET",
+      type: reviewType,
       orderId: orderId ?? null,
       careBookingId: input.careBookingId ?? null,
       comment: input.comment,
@@ -71,6 +76,47 @@ export async function getReviewsForOrder(orderId: string) {
     include: {
       reviewer: { select: { id: true, name: true, email: true } },
       producer: { select: { id: true, name: true } },
+    },
+  });
+}
+
+/** Buyer's review for a specific order (if any). For showing Leave/Update review on order. */
+export async function getReviewByOrderForBuyer(buyerId: string, orderId: string) {
+  return prisma.review.findFirst({
+    where: { orderId, reviewerId: buyerId, type: "MARKET" },
+    select: {
+      id: true,
+      comment: true,
+      rating: true,
+      privateFlag: true,
+      resolved: true,
+      createdAt: true,
+      adminGuidance: true,
+    },
+  });
+}
+
+/** Buyer updates their own review (comment/rating). Allowed only while review is still private. */
+export async function updateReviewByReviewer(
+  reviewId: string,
+  reviewerId: string,
+  data: { comment?: string; rating?: number }
+) {
+  const review = await prisma.review.findUnique({
+    where: { id: reviewId },
+    select: { reviewerId: true, privateFlag: true },
+  });
+  if (!review || review.reviewerId !== reviewerId) {
+    throw new Error("Review not found or you are not the reviewer.");
+  }
+  if (!review.privateFlag) {
+    throw new Error("You can only update a review before it is made public.");
+  }
+  return prisma.review.update({
+    where: { id: reviewId },
+    data: {
+      ...(data.comment !== undefined && { comment: data.comment.trim() }),
+      ...(data.rating !== undefined && { rating: data.rating >= 1 && data.rating <= 5 ? data.rating : undefined }),
     },
   });
 }
@@ -120,6 +166,36 @@ export async function setProducerResponse(reviewId: string, producerResponse: st
   });
 }
 
+/** Producer: approve review (make it public). */
+export async function approveReviewByProducer(reviewId: string, producerId: string) {
+  const review = await prisma.review.findUnique({
+    where: { id: reviewId },
+    select: { revieweeId: true, privateFlag: true },
+  });
+  if (!review || review.revieweeId !== producerId) {
+    throw new Error("Review not found or you are not the producer.");
+  }
+  return prisma.review.update({
+    where: { id: reviewId },
+    data: { privateFlag: false },
+  });
+}
+
+/** Producer: flag review for admin (unfair or unrelated). */
+export async function flagReviewByProducer(reviewId: string, producerId: string) {
+  const review = await prisma.review.findUnique({
+    where: { id: reviewId },
+    select: { revieweeId: true },
+  });
+  if (!review || review.revieweeId !== producerId) {
+    throw new Error("Review not found or you are not the producer.");
+  }
+  return prisma.review.update({
+    where: { id: reviewId },
+    data: { flaggedForAdmin: true, flaggedAt: new Date() },
+  });
+}
+
 /** Admin moderation: hide abusive or off-topic review. */
 export async function hideReviewByAdmin(reviewId: string) {
   return prisma.review.update({
@@ -128,15 +204,82 @@ export async function hideReviewByAdmin(reviewId: string) {
   });
 }
 
-/** Admin: list all reviews with optional filter by hidden. */
+/** Producer: list reviews received (pending = privateFlag true, not hidden). */
+export async function getPendingReviewsForProducer(producerId: string) {
+  return prisma.review.findMany({
+    where: {
+      revieweeId: producerId,
+      type: "MARKET",
+      privateFlag: true,
+      hiddenByAdmin: false,
+    },
+    include: {
+      reviewer: { select: { id: true, name: true, email: true } },
+      order: { select: { id: true, productId: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+/** Admin: list all reviews with optional filter by hidden; include flagged. */
 export async function getReviewsForAdmin(includeHidden = false) {
   return prisma.review.findMany({
     where: includeHidden ? undefined : { hiddenByAdmin: false },
-    include: {
+    select: {
+      id: true,
+      comment: true,
+      rating: true,
+      producerResponse: true,
+      resolved: true,
+      hiddenByAdmin: true,
+      flaggedForAdmin: true,
+      flaggedAt: true,
+      privateFlag: true,
+      adminGuidance: true,
+      createdAt: true,
+      type: true,
+      careBookingId: true,
       reviewer: { select: { id: true, name: true, email: true } },
       producer: { select: { id: true, name: true } },
       order: { select: { id: true, productId: true, pickupDate: true } },
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ flaggedForAdmin: "desc" }, { createdAt: "desc" }],
+  });
+}
+
+/** Admin: get only flagged reviews for the flagged dashboard. */
+export async function getFlaggedReviewsForAdmin() {
+  return prisma.review.findMany({
+    where: { flaggedForAdmin: true, type: "MARKET" },
+    include: {
+      reviewer: { select: { id: true, name: true, email: true } },
+      producer: { select: { id: true, name: true, email: true } },
+      order: { select: { id: true, productId: true, pickupDate: true } },
+    },
+    orderBy: { flaggedAt: "desc" },
+  });
+}
+
+/** Admin: clear flag (dismiss producer's flag). */
+export async function dismissFlagByAdmin(reviewId: string) {
+  return prisma.review.update({
+    where: { id: reviewId },
+    data: { flaggedForAdmin: false, flaggedAt: null },
+  });
+}
+
+/** Admin: approve flagged review (clear flag and make public — review is fair). */
+export async function approveFlaggedReviewByAdmin(reviewId: string) {
+  return prisma.review.update({
+    where: { id: reviewId },
+    data: { flaggedForAdmin: false, flaggedAt: null, privateFlag: false },
+  });
+}
+
+/** Admin: set guidance on a review (for producer/buyer). */
+export async function setAdminGuidance(reviewId: string, guidance: string | null) {
+  return prisma.review.update({
+    where: { id: reviewId },
+    data: { adminGuidance: guidance?.trim() || null },
   });
 }

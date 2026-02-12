@@ -14,10 +14,12 @@ export interface AdminReviewRow {
   producerResponse: string | null;
   resolved: boolean;
   hiddenByAdmin: boolean;
+  flaggedForAdmin?: boolean;
+  flaggedAt?: string | null;
+  privateFlag?: boolean;
   createdAt: string;
   reviewerName: string;
   producerName: string;
-  /** Order id (market) or care booking id; null for legacy/CARE without link. */
   orderId: string | null;
   type?: "MARKET" | "CARE";
 }
@@ -73,6 +75,8 @@ export function AdminReviewsClient({
                 <td className="py-3">
                   {r.hiddenByAdmin ? (
                     <span className="text-amber-700">Hidden</span>
+                  ) : r.flaggedForAdmin ? (
+                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-800">Flagged by producer</span>
                   ) : r.resolved ? (
                     <span className="text-green-700">Resolved</span>
                   ) : (

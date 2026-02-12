@@ -5,7 +5,7 @@
  */
 
 import "dotenv/config";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, PlatformUse } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 const connectionString = process.env.DATABASE_URL;
@@ -22,6 +22,8 @@ const TEST_USERS = [
     name: "Test Buyer",
     role: "BUYER" as const,
     zipCode: "90210",
+    phone: "000-000-0000",
+    platformUse: "BUY_LOCAL_GOODS" as const,
     isProducer: false,
     isBuyer: true,
     isCaregiver: false,
@@ -32,6 +34,8 @@ const TEST_USERS = [
     name: "Test Producer",
     role: "PRODUCER" as const,
     zipCode: "90210",
+    phone: "000-000-0000",
+    platformUse: "SELL_PRODUCTS" as const,
     isProducer: true,
     isBuyer: false,
     isCaregiver: false,
@@ -42,6 +46,8 @@ const TEST_USERS = [
     name: "Test Admin",
     role: "ADMIN" as const,
     zipCode: "90210",
+    phone: "000-000-0000",
+    platformUse: "OTHER" as const,
     isProducer: false,
     isBuyer: true,
     isCaregiver: false,
@@ -53,11 +59,16 @@ async function main() {
   for (const user of TEST_USERS) {
     await prisma.user.upsert({
       where: { email: user.email },
-      create: user,
+      create: {
+        ...user,
+        platformUse: user.platformUse === "BUY_LOCAL_GOODS" ? PlatformUse.BUY_LOCAL_GOODS : user.platformUse === "SELL_PRODUCTS" ? PlatformUse.SELL_PRODUCTS : PlatformUse.OTHER,
+      },
       update: {
         name: user.name,
         role: user.role,
         zipCode: user.zipCode,
+        phone: user.phone,
+        platformUse: user.platformUse === "BUY_LOCAL_GOODS" ? PlatformUse.BUY_LOCAL_GOODS : user.platformUse === "SELL_PRODUCTS" ? PlatformUse.SELL_PRODUCTS : PlatformUse.OTHER,
         isProducer: user.isProducer,
         isBuyer: user.isBuyer,
         isCaregiver: user.isCaregiver,

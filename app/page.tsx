@@ -6,8 +6,11 @@
 import Link from "next/link";
 import Image from "next/image";
 import { ShoppingBagIcon, HeartIcon } from "@heroicons/react/24/outline";
+import { isCareEnabled } from "@/lib/feature-flags";
 
 export default function Home() {
+  const careEnabled = isCareEnabled();
+  
   return (
     <div className="min-h-screen bg-brand-light">
       {/* Hero: same visual language as Market / Care */}
@@ -35,7 +38,7 @@ export default function Home() {
         <div className="rounded-2xl border border-brand/15 bg-white p-6 shadow-xl sm:p-8">
           <div className="grid gap-6 sm:grid-cols-2">
             <Link
-              href="/market"
+              href="/market/browse"
               className="flex flex-col items-center rounded-xl border-2 border-brand/20 bg-brand-light/50 p-6 text-center transition hover:border-brand hover:bg-brand-light"
             >
               <ShoppingBagIcon className="h-12 w-12 text-brand" aria-hidden />
@@ -45,17 +48,28 @@ export default function Home() {
               </p>
               <span className="mt-4 text-sm font-medium text-brand-accent">Browse Market →</span>
             </Link>
-            <Link
-              href="/care"
-              className="flex flex-col items-center rounded-xl border-2 border-brand/20 bg-brand-light/50 p-6 text-center transition hover:border-brand hover:bg-brand-light"
-            >
-              <HeartIcon className="h-12 w-12 text-brand" aria-hidden />
-              <span className="font-display mt-3 text-xl font-semibold text-brand">Care</span>
-              <p className="mt-2 text-sm text-brand/80">
-                Trusted animal care and homestead support in your neighborhood.
-              </p>
-              <span className="mt-4 text-sm font-medium text-brand-accent">Find Care →</span>
-            </Link>
+            {careEnabled ? (
+              <Link
+                href="/care"
+                className="flex flex-col items-center rounded-xl border-2 border-brand/20 bg-brand-light/50 p-6 text-center transition hover:border-brand hover:bg-brand-light"
+              >
+                <HeartIcon className="h-12 w-12 text-brand" aria-hidden />
+                <span className="font-display mt-3 text-xl font-semibold text-brand">Care</span>
+                <p className="mt-2 text-sm text-brand/80">
+                  Trusted animal care and homestead support in your neighborhood.
+                </p>
+                <span className="mt-4 text-sm font-medium text-brand-accent">Find Care →</span>
+              </Link>
+            ) : (
+              <div className="flex flex-col items-center rounded-xl border-2 border-brand/20 bg-brand-light/30 p-6 text-center opacity-60">
+                <HeartIcon className="h-12 w-12 text-brand/60" aria-hidden />
+                <span className="font-display mt-3 text-xl font-semibold text-brand/70">Care</span>
+                <p className="mt-2 text-sm text-brand/60">
+                  Trusted animal care and homestead support in your neighborhood.
+                </p>
+                <span className="mt-4 text-sm font-medium text-brand/50">Coming Soon</span>
+              </div>
+            )}
           </div>
         </div>
       </section>

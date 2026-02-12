@@ -21,29 +21,65 @@ datasource db {
 enum Role {
   BUYER
   PRODUCER
+  CAREGIVER
+  CARE_SEEKER
   ADMIN
+}
+
+/// What the user wants to do most often; drives post-login/onboarding redirect.
+enum PrimaryMode {
+  MARKET
+  SELL
+  CARE
+}
+
+/// How the user plans to use the platform (identity + intent).
+enum PlatformUse {
+  BUY_LOCAL_GOODS
+  SELL_PRODUCTS
+  FIND_ANIMAL_CARE
+  OFFER_ANIMAL_CARE
+  BOTH_MARKET_AND_CARE
+  OTHER
 }
 
 model User {
   id        String    @id @default(cuid())
   email     String    @unique
   name      String?
-  role      Role      @default(BUYER)
+  /// Required: single source of truth for contact. (Migration backfills existing rows then sets NOT NULL.)
+  phone     String
   zipCode   String
+  /// Optional address.
+  addressLine1 String?  @map("address_line_1")
+  city      String?
+  state     String?
+  /// Required: how they plan to use the platform.
+  platformUse PlatformUse @map("platform_use")
   bio       String?
   avatarUrl String?
   createdAt DateTime  @default(now())
   /// Clerk (or other provider) external id for sync.
   clerkId   String?   @unique @map("clerk_id")
 
-  /// Role flags: one account can be multiple (e.g. producer + homestead owner). Same login, no duplicates.
+  /// Legacy: kept for backward compat; prefer userRoles for role decisions.
+  role      Role      @default(BUYER)
   isProducer       Boolean @default(false)
   isBuyer          Boolean @default(false)
   isCaregiver      Boolean @default(false)
   isHomesteadOwner Boolean @default(false)
 
+  /// Primary mode for first landing after login/onboarding. Null = use role fallback.
+  primaryMode   PrimaryMode? @map("primary_mode")
+  /// Set when user completes onboarding.
+  onboardedAt   DateTime?   @map("onboarded_at")
+
+  userRoles     UserRole[]
   products     Product[]
+  customCategoriesCreated CustomCategory[]
   producerProfile ProducerProfile?
+  caregiverProfile CaregiverProfile?
+  careSeekerProfile CareSeekerProfile?
   ordersAsBuyer    Order[]    @relation("OrderBuyer")
   ordersAsProducer Order[]    @relation("OrderProducer")
   events       Event[]
@@ -60,9 +96,23 @@ model User {
   conversationsAsA Conversation[] @relation("ConversationUserA")
   conversationsAsB Conversation[] @relation("ConversationUserB")
   messagesSent     Message[]
+
+  adminActionLogs AdminActionLog[]
 }
 
-/// Producer-level delivery + pickup settings. One per producer (userId).
+/// Join table: one row per role per user. Cleaner than enum array; supports future role metadata.
+model UserRole {
+  id     String @id @default(cuid())
+  userId String @map("user_id")
+  role   Role
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
+  @@map("user_roles")
+}
+
+/// Producer-level delivery + pickup settings and business page. One per producer (userId).
 model ProducerProfile {
   id               String   @id @default(cuid())
   userId           String   @unique
@@ -70,8 +120,45 @@ model ProducerProfile {
   deliveryFeeCents Int      @default(0)
   pickupNotes      String?
   pickupZipCode    String?  /// Optional; fallback to User.zipCode
+  /// Business page: rich About Us
+  aboutUs          String?  @map("about_us")
+  /// Producer/farm story
+  story            String?
+  /// Optional hero/business image URL
+  profileImageUrl  String?  @map("profile_image_url")
+  /// Contact: optional public email (if acceptInAppMessagesOnly is false)
+  contactEmail     String?  @map("contact_email")
+  /// General location (e.g. "North County", "Downtown Market")
+  generalLocation  String?  @map("general_location")
+  /// Availability hours (e.g. "Sat 9am–2pm")
+  availabilityHours String? @map("availability_hours")
+  /// If true, show in-app messages only; if false, also show contactEmail on storefront
+  acceptInAppMessagesOnly Boolean @default(true) @map("accept_in_app_messages_only")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Caregiver-specific profile (only if they offer care). One per user.
+model CaregiverProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique @map("user_id")
+  bio       String?
+  serviceAreas String? @map("service_areas") /// e.g. "Dogs, cats", or radius + ZIP
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Care seeker–specific profile (only if they hire care). One per user.
+model CareSeekerProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique @map("user_id")
+  address   String?  /// Optional; for caregiver travel
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -95,6 +182,40 @@ model Product {
   orders      Order[]
   orderItems  OrderItem[]
   eventProducts EventProduct[]
+}
+
+/// Producer-submitted category; pending until admin approves. Once approved, visible to all producers. Rejected = not shown to anyone.
+enum CustomCategoryStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model CustomCategory {
+  id              String              @id @default(cuid())
+  name            String
+  groupId         String?             @map("group_id")
+  status          CustomCategoryStatus @default(PENDING)
+  correctedName   String?             @map("corrected_name")
+  defaultImageUrl String?             @map("default_image_url")
+  createdById     String              @map("created_by_id")
+  approvedAt      DateTime?           @map("approved_at")
+  createdAt       DateTime            @default(now())
+
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Cascade)
+}
+
+/// Log of admin actions (e.g. approve/reject/edit custom category) for audit.
+model AdminActionLog {
+  id          String   @id @default(cuid())
+  performedById String  @map("performed_by_id")
+  action      String   /// e.g. CUSTOM_CATEGORY_APPROVE, CUSTOM_CATEGORY_REJECT, CUSTOM_CATEGORY_EDIT
+  entityType  String   @map("entity_type") /// e.g. CustomCategory
+  entityId    String   @map("entity_id")
+  details     Json?    /// e.g. { name, correctedName, previousStatus }
+  createdAt   DateTime @default(now())
+
+  performedBy User @relation(fields: [performedById], references: [id], onDelete: Cascade)
 }
 
 enum OrderStatus {
@@ -128,8 +249,9 @@ model Order {
   fulfilledAt DateTime? @map("fulfilled_at")
   stripeSessionId String? @map("stripe_session_id")
   createdAt  DateTime @default(now())
-  resolutionWindowEndsAt DateTime? @map("resolution_window_ends_at")
-  pickupCode String?  @map("pickup_code")
+  /// Column names match initial migration (camelCase); do not @map to snake_case.
+  resolutionWindowEndsAt DateTime?
+  pickupCode String?
 
   buyer      User    @relation("OrderBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
   producer   User    @relation("OrderProducer", fields: [producerId], references: [id], onDelete: Cascade)
@@ -152,13 +274,14 @@ model OrderItem {
 
 // Subscription references producer by userId (producer); add producerId to User if needed later
 
-/// Events: "Pick up at market booth Saturday". Preorder + pickup QR (add on Order/EventOrder when building checkout).
+/// Events: "Pick up at market booth Saturday". Preorder + pickup QR. Hours for storefront (e.g. "9am–2pm").
 model Event {
   id            String   @id @default(cuid())
   userId        String
   name          String
   location      String
   eventDate     DateTime
+  eventHours    String?  @map("event_hours") /// e.g. "9am–2pm"
   allowPreorder Boolean  @default(true)
   createdAt     DateTime @default(now())
 
@@ -196,6 +319,11 @@ model Review {
   rating      Int?
   producerResponse String?
   hiddenByAdmin    Boolean @default(false)
+  /// Producer flagged for admin review (unfair or unrelated).
+  flaggedForAdmin Boolean @default(false) @map("flagged_for_admin")
+  flaggedAt   DateTime?  @map("flagged_at")
+  /// Admin guidance (e.g. for producer or buyer when handling flagged review).
+  adminGuidance String?   @map("admin_guidance")
 
   reviewer User  @relation("ReviewReviewer", fields: [reviewerId], references: [id], onDelete: Cascade)
   producer User  @relation("ReviewProducer", fields: [producerId], references: [id], onDelete: Cascade)
