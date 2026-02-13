@@ -6,6 +6,9 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ok, fail, parseJsonBody } from "@/lib/api";
+import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limit";
+import { getRequestId } from "@/lib/request-id";
+import { logError } from "@/lib/logger";
 import { PlatformUse, Role, PrimaryMode } from "@prisma/client";
 
 const VALID_ROLES = ["BUYER", "PRODUCER", "ADMIN"] as const;
@@ -40,6 +43,10 @@ export async function POST(request: NextRequest) {
   if (process.env.NODE_ENV !== "development") {
     return fail("Not available", "NOT_AVAILABLE", 404);
   }
+
+  const requestId = getRequestId(request);
+  const rateLimitRes = await checkRateLimit(request, RATE_LIMIT_PRESETS.AUTH);
+  if (rateLimitRes) return rateLimitRes;
 
   try {
     // Parse and validate request body
@@ -101,23 +108,24 @@ export async function POST(request: NextRequest) {
     });
 
     const res = ok({ redirect: "/auth/onboarding" });
+    const isProduction = (process.env.NODE_ENV as string) === "production";
     res.cookies.set("__dev_user_id", userId, {
       path: "/",
       maxAge: 60 * 60 * 24 * 7,
       httpOnly: true,
       sameSite: "lax",
-      secure: false,
+      secure: isProduction,
     });
     res.cookies.set("__dev_user", role, {
       path: "/",
-      maxAge: 60 * 60 * 24 * 7, // 7 days
+      maxAge: 60 * 60 * 24 * 7,
       httpOnly: true,
       sameSite: "lax",
-      secure: false, // dev-only route; production should use Clerk
+      secure: isProduction,
     });
     return res;
   } catch (error) {
-    console.error("Dev login error:", error);
-    return fail("Internal server error", "INTERNAL_ERROR", 500);
+    logError("auth/dev-login/POST", error, { requestId, path: "/api/auth/dev-login", method: "POST" });
+    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
   }
 }

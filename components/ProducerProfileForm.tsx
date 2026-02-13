@@ -10,6 +10,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { PickupNotesField } from "./PickupNotesField";
 import { DeliverySettings } from "./DeliverySettings";
+import { apiGet, apiPatch } from "@/lib/client/api-client";
 
 export interface ProducerProfileFormProps {
   onSaved?: () => void;
@@ -62,10 +63,8 @@ export function ProducerProfileForm({ onSaved }: ProducerProfileFormProps) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetch("/api/dashboard/profile")
-      .then((r) => r.json())
+    apiGet<ProfileData>("/api/dashboard/profile")
       .then((res) => {
-        if (res.error) throw new Error(res.error);
         setData(res);
         setName(res.user?.name ?? "");
         setBio(res.user?.bio ?? "");
@@ -92,28 +91,22 @@ export function ProducerProfileForm({ onSaved }: ProducerProfileFormProps) {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch("/api/dashboard/profile", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim() || null,
-          bio: bio.trim() || null,
-          zipCode: zipCode.trim().slice(0, 5) || undefined,
-          pickupNotes: pickupNotes.trim() || null,
-          pickupZipCode: pickupZipCode.trim().slice(0, 5) || null,
-          offersDelivery,
-          deliveryFeeCents: Number(deliveryFeeCents) || 0,
-          aboutUs: aboutUs.trim() || null,
-          story: story.trim() || null,
-          profileImageUrl: profileImageUrl.trim() || null,
-          contactEmail: contactEmail.trim() || null,
-          generalLocation: generalLocation.trim() || null,
-          availabilityHours: availabilityHours.trim() || null,
-          acceptInAppMessagesOnly,
-        }),
+      await apiPatch("/api/dashboard/profile", {
+        name: name.trim() || null,
+        bio: bio.trim() || null,
+        zipCode: zipCode.trim().slice(0, 5) || undefined,
+        pickupNotes: pickupNotes.trim() || null,
+        pickupZipCode: pickupZipCode.trim().slice(0, 5) || null,
+        offersDelivery,
+        deliveryFeeCents: Number(deliveryFeeCents) || 0,
+        aboutUs: aboutUs.trim() || null,
+        story: story.trim() || null,
+        profileImageUrl: profileImageUrl.trim() || null,
+        contactEmail: contactEmail.trim() || null,
+        generalLocation: generalLocation.trim() || null,
+        availabilityHours: availabilityHours.trim() || null,
+        acceptInAppMessagesOnly,
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Save failed");
       onSaved?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");

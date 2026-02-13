@@ -3,7 +3,6 @@
  */
 
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { getReviewsForAdmin } from "@/lib/reviews";
 import { AdminReviewsClient } from "./AdminReviewsClient";
@@ -22,41 +21,14 @@ export default async function AdminReviewsPage({
   const includeHidden = showHidden === "1" || showHidden === "true";
   const reviews = await getReviewsForAdmin(includeHidden);
   return (
-    <div className="min-h-screen bg-brand-light">
-      <div className="mx-auto max-w-4xl px-4 py-8">
-        <div className="flex items-center gap-4">
-          <h1 className="font-display text-2xl font-semibold text-brand">
-            Admin: Review moderation
-          </h1>
-          <Link
-            href="/admin/users"
-            className="text-brand-accent hover:underline"
-          >
-            Users
-          </Link>
-          <Link
-            href="/admin/listings"
-            className="text-brand-accent hover:underline"
-          >
-            Listings
-          </Link>
-          <Link
-            href="/admin/custom-categories"
-            className="text-brand-accent hover:underline"
-          >
-            Custom Category Review
-          </Link>
-          <Link
-            href="/admin/flagged-reviews"
-            className="rounded bg-amber-100 px-2 py-1 text-sm font-medium text-amber-800 hover:bg-amber-200"
-          >
-            Flagged reviews
-          </Link>
-        </div>
-        <p className="mt-2 text-brand/80">
-          Hide abusive or off-topic reviews. Resolution window applies to negative public reviews.
-        </p>
-        <AdminReviewsClient
+    <div className="mx-auto max-w-6xl px-4 py-10">
+      <h1 className="font-display text-2xl font-semibold text-brand leading-tight">
+        Admin: Review moderation
+      </h1>
+      <p className="mt-2 text-brand/80 leading-relaxed">
+        Hide abusive or off-topic reviews. Resolution window applies to negative public reviews.
+      </p>
+      <AdminReviewsClient
           reviews={reviews.map((r) => ({
             id: r.id,
             comment: r.comment,
@@ -75,7 +47,6 @@ export default async function AdminReviewsPage({
           }))}
           includeHidden={includeHidden}
         />
-      </div>
     </div>
   );
 }

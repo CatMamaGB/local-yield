@@ -5,6 +5,9 @@
  */
 
 import { useState } from "react";
+import { apiPost } from "@/lib/client/api-client";
+import { ApiError, apiErrorMessage } from "@/lib/client/api-client";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 interface RequestItemFormProps {
   defaultZip?: string;
@@ -22,27 +25,17 @@ export function RequestItemForm({ defaultZip = "" }: RequestItemFormProps) {
     setStatus("loading");
     setMessage("");
     try {
-      const res = await fetch("/api/item-requests", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          description: description.trim(),
-          zipCode: zipCode.trim().slice(0, 5) || undefined,
-          radiusMiles: radiusMiles || undefined,
-        }),
+      await apiPost("/api/item-requests", {
+        description: description.trim(),
+        zipCode: zipCode.trim().slice(0, 5) || undefined,
+        radiusMiles: radiusMiles || undefined,
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setStatus("error");
-        setMessage(data.error ?? "Something went wrong");
-        return;
-      }
       setStatus("success");
       setMessage("Request posted. Producers in your area will see it.");
       setDescription("");
-    } catch {
+    } catch (err) {
       setStatus("error");
-      setMessage("Network error");
+      setMessage(err instanceof ApiError ? apiErrorMessage(err) : "Something went wrong");
     }
   }
 
@@ -94,9 +87,9 @@ export function RequestItemForm({ defaultZip = "" }: RequestItemFormProps) {
         </div>
       </div>
       {message && (
-        <p className={status === "error" ? "text-sm text-red-600" : "text-sm text-green-700"}>
+        <InlineAlert variant={status === "error" ? "error" : "success"}>
           {message}
-        </p>
+        </InlineAlert>
       )}
       <button
         type="submit"

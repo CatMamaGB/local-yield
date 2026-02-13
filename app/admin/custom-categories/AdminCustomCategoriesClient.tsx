@@ -8,6 +8,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { apiPatch } from "@/lib/client/api-client";
+import { ApiError, apiErrorMessage } from "@/lib/client/api-client";
 
 export interface PendingCustomCategoryRow {
   id: string;
@@ -73,23 +75,15 @@ export function AdminCustomCategoriesClient({
   async function handleApprove(id: string, correctedNameValue?: string | null) {
     setLoadingId(id);
     try {
-      const res = await fetch(`/api/admin/custom-categories/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: "APPROVED",
-          correctedName: correctedNameValue != null ? correctedNameValue.trim() || null : undefined,
-        }),
+      await apiPatch(`/api/admin/custom-categories/${id}`, {
+        status: "APPROVED",
+        correctedName: correctedNameValue != null ? correctedNameValue.trim() || null : undefined,
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Failed to approve");
-      }
       setCorrectingId(null);
       setCorrectedName("");
       router.refresh();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed");
+      alert(err instanceof ApiError ? apiErrorMessage(err) : (err instanceof Error ? err.message : "Failed"));
     } finally {
       setLoadingId(null);
     }
@@ -99,20 +93,12 @@ export function AdminCustomCategoriesClient({
     if (!confirm("Reject this category? It will be removed from the producer’s list and not shown to anyone.")) return;
     setLoadingId(id);
     try {
-      const res = await fetch(`/api/admin/custom-categories/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "REJECTED" }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Failed to reject");
-      }
+      await apiPatch(`/api/admin/custom-categories/${id}`, { status: "REJECTED" });
       setCorrectingId(null);
       setEditOnlyId(null);
       router.refresh();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed");
+      alert(err instanceof ApiError ? apiErrorMessage(err) : (err instanceof Error ? err.message : "Failed"));
     } finally {
       setLoadingId(null);
     }
@@ -123,20 +109,12 @@ export function AdminCustomCategoriesClient({
     if (!name) return;
     setLoadingId(id);
     try {
-      const res = await fetch(`/api/admin/custom-categories/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ correctedName: name }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Failed to save edit");
-      }
+      await apiPatch(`/api/admin/custom-categories/${id}`, { correctedName: name });
       setEditOnlyId(null);
       setEditOnlyName("");
       router.refresh();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed");
+      alert(err instanceof ApiError ? apiErrorMessage(err) : (err instanceof Error ? err.message : "Failed"));
     } finally {
       setLoadingId(null);
     }

@@ -5,6 +5,11 @@
  */
 
 import { useState, useEffect } from "react";
+import { apiGet, apiPost, apiDelete } from "@/lib/client/api-client";
+import { ApiError, apiErrorMessage } from "@/lib/client/api-client";
+import { InlineAlert } from "@/components/ui/InlineAlert";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
 
 interface EventRow {
   id: string;
@@ -26,17 +31,17 @@ export function EventsClient() {
   const [eventHours, setEventHours] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  function load() {
+  async function load() {
     setLoading(true);
     setError(null);
-    fetch("/api/dashboard/events")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.error) throw new Error(data.error);
-        setEvents(data.events ?? []);
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load"))
-      .finally(() => setLoading(false));
+    try {
+      const data = await apiGet<{ events?: EventRow[] }>("/api/dashboard/events");
+      setEvents(data.events ?? []);
+    } catch (e) {
+      setError(e instanceof ApiError ? apiErrorMessage(e) : (e instanceof Error ? e.message : "Failed to load"));
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -48,18 +53,12 @@ export function EventsClient() {
     if (!name.trim() || !location.trim() || !eventDate) return;
     setSubmitting(true);
     try {
-      const res = await fetch("/api/dashboard/events", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          location: location.trim(),
-          eventDate,
-          eventHours: eventHours.trim() || undefined,
-        }),
+      await apiPost("/api/dashboard/events", {
+        name: name.trim(),
+        location: location.trim(),
+        eventDate,
+        eventHours: eventHours.trim() || undefined,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to add");
       setShowAdd(false);
       setName("");
       setLocation("");
@@ -67,7 +66,7 @@ export function EventsClient() {
       setEventHours("");
       load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed");
+      setError(err instanceof ApiError ? apiErrorMessage(err) : (err instanceof Error ? err.message : "Failed"));
     } finally {
       setSubmitting(false);
     }
@@ -76,16 +75,15 @@ export function EventsClient() {
   async function handleDelete(id: string) {
     if (!confirm("Delete this event?")) return;
     try {
-      const res = await fetch(`/api/dashboard/events/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Delete failed");
+      await apiDelete(`/api/dashboard/events/${id}`);
       load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Delete failed");
+      setError(err instanceof ApiError ? apiErrorMessage(err) : (err instanceof Error ? err.message : "Delete failed"));
     }
   }
 
-  if (loading) return <p className="mt-6 text-brand/70">Loading events…</p>;
-  if (error) return <p className="mt-6 text-red-600">{error}</p>;
+  if (loading) return <LoadingSkeleton rows={4} className="mt-6" />;
+  if (error) return <InlineAlert variant="error" className="mt-6">{error}</InlineAlert>;
 
   return (
     <div className="mt-6 space-y-6">
@@ -157,9 +155,11 @@ export function EventsClient() {
       )}
 
       {events.length === 0 ? (
-        <p className="rounded-xl border border-brand/20 bg-white p-6 text-brand/70">
-          No events yet. Add markets or pop-ups to show them on your storefront.
-        </p>
+        <EmptyState
+          title="No events yet"
+          body="Add markets or pop-ups to show them on your storefront."
+          className="mt-4"
+        />
       ) : (
         <ul className="space-y-3">
           {events.map((e) => (

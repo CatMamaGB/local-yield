@@ -6,6 +6,9 @@ import Link from "next/link";
 import { useCart } from "@/contexts/CartContext";
 import { FulfillmentSelector } from "@/components/FulfillmentSelector";
 import { formatPrice } from "@/lib/utils";
+import { apiGet, apiPost } from "@/lib/client/api-client";
+import { ApiError, apiErrorMessage } from "@/lib/client/api-client";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 type FulfillmentType = "PICKUP" | "DELIVERY";
 
@@ -22,21 +25,17 @@ export function CheckoutClient() {
 
   useEffect(() => {
     if (!singleProducerId || items.length === 0) return;
-    
+
     async function fetchDeliveryInfo() {
       try {
-        const res = await fetch(`/api/shop/${singleProducerId}/delivery`);
-        if (!res.ok) {
-          throw new Error("Failed to fetch delivery information");
-        }
-        const data = await res.json();
+        const data = await apiGet<{ offersDelivery?: boolean; deliveryFeeCents?: number }>(
+          `/api/shop/${singleProducerId}/delivery`
+        );
         setOffersDelivery(data.offersDelivery ?? false);
         setDeliveryFeeCents(data.deliveryFeeCents ?? 0);
         setDeliveryFeeError(null);
-      } catch (err) {
-        console.error("Delivery fee fetch error:", err);
+      } catch {
         setDeliveryFeeError("Unable to load delivery options");
-        // Default to pickup if delivery fetch fails
         setOffersDelivery(false);
         setDeliveryFeeCents(0);
       }
@@ -70,41 +69,31 @@ export function CheckoutClient() {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
-    
-    try {
-      const res = await fetch("/api/orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          producerId: singleProducerId,
-          items: items.map((i) => ({
-            productId: i.productId,
-            quantity: i.quantity,
-            unitPriceCents: i.unitPriceCents,
-          })),
-          fulfillmentType,
-          notes: notes.trim() || undefined,
-        }),
-      });
-      
-      const data = await res.json();
-      
-      // Check for success response format: { ok: true, data: { orderId, pickupCode } }
-      if (!res.ok || !data.ok) {
-        const errorMessage = data.error || data.message || "Checkout failed";
-        throw new Error(errorMessage);
-      }
 
-      // Only clear cart after successful order creation
-      if (data.ok && data.data?.orderId) {
+    try {
+      const data = await apiPost<{ orderId: string; pickupCode?: string }>("/api/orders", {
+        producerId: singleProducerId,
+        items: items.map((i) => ({
+          productId: i.productId,
+          quantity: i.quantity,
+          unitPriceCents: i.unitPriceCents,
+        })),
+        fulfillmentType,
+        notes: notes.trim() || undefined,
+      });
+
+      if (data?.orderId) {
         clearCart();
-        router.push(`/market/order-confirmation/${data.data.orderId}`);
+        router.push(`/market/order-confirmation/${data.orderId}`);
         router.refresh();
       } else {
-        throw new Error("Invalid response from server");
+        setError("Invalid response from server");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Checkout failed");
+      const msg =
+        err instanceof ApiError ? apiErrorMessage(err) : (err instanceof Error ? err.message : "Checkout failed");
+      setError(msg);
+    } finally {
       setSubmitting(false);
     }
   }
@@ -144,11 +133,15 @@ export function CheckoutClient() {
         </p>
       </div>
       {deliveryFeeError && fulfillmentType === "DELIVERY" && (
-        <p className="text-sm text-yellow-600" role="alert">
+        <InlineAlert variant="warning" className="mt-2">
           {deliveryFeeError}. Please contact the producer for delivery details.
-        </p>
+        </InlineAlert>
       )}
-      {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
+      {error && (
+        <InlineAlert variant="error" className="mt-2">
+          {error}
+        </InlineAlert>
+      )}
       <p className="text-sm text-brand/70">
         You’ll pay the producer at pickup or delivery (cash or as arranged).
       </p>

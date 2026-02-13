@@ -10,6 +10,9 @@ import { prisma } from "@/lib/prisma";
 import { getPostOnboardingRedirect } from "@/lib/redirects";
 import { ok, fail, parseJsonBody } from "@/lib/api";
 import { OnboardingSchema } from "@/lib/validators";
+import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limit";
+import { getRequestId } from "@/lib/request-id";
+import { logError } from "@/lib/logger";
 import { Role, PrimaryMode } from "@prisma/client";
 
 const SIGNUP_TO_PRISMA_ROLE: Record<string, Role> = {
@@ -20,6 +23,9 @@ const SIGNUP_TO_PRISMA_ROLE: Record<string, Role> = {
 };
 
 export async function POST(request: NextRequest) {
+  const rateLimitRes = await checkRateLimit(request, RATE_LIMIT_PRESETS.AUTH);
+  if (rateLimitRes) return rateLimitRes;
+
   try {
     const { data: body, error: parseError } = await parseJsonBody(request);
     if (parseError) return fail(parseError, "INVALID_JSON", 400);
@@ -119,7 +125,8 @@ export async function POST(request: NextRequest) {
     });
     return res;
   } catch (error) {
-    console.error("Onboarding error:", error);
-    return fail("Failed to save ZIP code", "INTERNAL_ERROR", 500);
+    const requestId = getRequestId(request);
+    logError("auth/onboarding/POST", error, { requestId, path: "/api/auth/onboarding", method: "POST" });
+    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
   }
 }

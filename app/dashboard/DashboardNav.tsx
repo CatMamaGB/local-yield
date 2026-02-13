@@ -1,90 +1,162 @@
 "use client";
 
 /**
- * Producer dashboard tab navigation: Customers, Sales Analytics, Orders, Messages.
- * Plus links to Profile, Products, Events, Records. Shown when user is producer or admin.
- * Shows badges for pending orders, reviews, messages.
+ * Producer dashboard navigation.
+ * Config from NAV.dashboard (lib/nav-config); two-tier layout (primary + secondary rows).
  */
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
-const TABS = [
-  { href: "/dashboard/customers", label: "Customers" },
-  { href: "/dashboard/analytics", label: "Sales Analytics" },
-  { href: "/dashboard/orders", label: "Orders", badge: "orders" as const },
-  { href: "/dashboard/messages", label: "Messages", badge: "messages" as const },
-] as const;
-
-const SECONDARY = [
-  { href: "/dashboard/profile", label: "Profile" },
-  { href: "/dashboard/products", label: "Products" },
-  { href: "/dashboard/events", label: "Events" },
-  { href: "/dashboard/reviews", label: "Reviews", badge: "reviews" as const },
-  { href: "/dashboard/records", label: "Records" },
-];
+import {
+  NAV,
+  isActiveHref,
+  getBadgeCount,
+  type NavRenderContext,
+  type BadgeKey,
+} from "@/lib/nav-config";
 
 export interface DashboardNavProps {
   pendingOrdersCount?: number;
   pendingReviewsCount?: number;
   unreadMessagesCount?: number;
+  showCareBookings?: boolean;
+  showSubscriptions?: boolean;
+}
+
+function renderItem(
+  pathname: string,
+  item: { href: string; label: string; badge?: BadgeKey; match?: "exact" | "prefix"; external?: boolean; disabled?: boolean },
+  badgeCounts: Record<BadgeKey, number>,
+  baseClass: string,
+  activeClass: string,
+  inactiveClass: string
+) {
+  const active = isActiveHref(pathname, item.href, item.match ?? "prefix");
+  const badgeCount = getBadgeCount(item.badge, badgeCounts);
+  const className = `${baseClass} ${active ? activeClass : inactiveClass}`;
+
+  if (item.disabled) {
+    return (
+      <span
+        key={item.href}
+        aria-disabled="true"
+        className={`${className} cursor-not-allowed opacity-60`}
+      >
+        {item.label}
+      </span>
+    );
+  }
+
+  if (item.external) {
+    return (
+      <a
+        key={item.href}
+        href={item.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={className}
+      >
+        {item.label}
+        {badgeCount > 0 && (
+          <span className="ml-1.5 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-brand-accent-bright px-1.5 text-xs font-semibold text-white">
+            {badgeCount > 99 ? "99+" : badgeCount}
+          </span>
+        )}
+      </a>
+    );
+  }
+
+  return (
+    <Link key={item.href} href={item.href} className={className}>
+      {item.label}
+      {badgeCount > 0 && (
+        <span className="ml-1.5 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-brand-accent-bright px-1.5 text-xs font-semibold text-white">
+          {badgeCount > 99 ? "99+" : badgeCount}
+        </span>
+      )}
+    </Link>
+  );
 }
 
 export function DashboardNav({
   pendingOrdersCount = 0,
   pendingReviewsCount = 0,
   unreadMessagesCount = 0,
+  showCareBookings = false,
+  showSubscriptions = false,
 }: DashboardNavProps) {
   const pathname = usePathname();
-  
-  const badgeCounts = {
+
+  const ctx: NavRenderContext = { showCareBookings, showSubscriptions };
+
+  const badgeCounts: Record<BadgeKey, number> = {
     orders: pendingOrdersCount,
     messages: unreadMessagesCount,
     reviews: pendingReviewsCount,
   };
 
+  const { sections } = NAV.dashboard;
+  const primarySection = sections.find((s) => s.id === "primary")!;
+  const secondarySection = sections.find((s) => s.id === "secondary")!;
+
+  const primaryItems = primarySection.items.filter((it) => (it.when ? it.when(ctx) : true));
+  const secondaryItems = secondarySection.items.filter((it) => (it.when ? it.when(ctx) : true));
+
   return (
-    <nav className="border-b border-brand/20 bg-white px-4 py-3" aria-label="Dashboard sections">
-      <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-4">
-        <div className="flex flex-wrap gap-1">
-          {TABS.map((tab) => {
-            const isActive = pathname === tab.href || pathname.startsWith(tab.href + "/");
-            const badgeCount = "badge" in tab && tab.badge ? badgeCounts[tab.badge] : 0;
-            return (
-              <Link
-                key={tab.href}
-                href={tab.href}
-                className={`relative rounded-lg px-3 py-2 text-sm font-medium ${
-                  isActive
-                    ? "bg-brand text-white"
-                    : "text-brand hover:bg-brand-light"
-                }`}
-              >
-                {tab.label}
-                {badgeCount > 0 && (
-                  <span className="ml-1.5 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-brand-accent px-1.5 text-xs font-semibold text-white">
-                    {badgeCount > 99 ? "99+" : badgeCount}
-                  </span>
-                )}
-              </Link>
-            );
-          })}
+    <nav className="border-b border-brand/10 bg-white shadow-farmhouse" aria-label="Dashboard sections">
+      <div className="mx-auto max-w-6xl px-4 py-3">
+        {/* PRIMARY ROW */}
+        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-3" aria-label={primarySection.ariaLabel}>
+          {primaryItems.map((item) =>
+            renderItem(
+              pathname,
+              item,
+              badgeCounts,
+              "relative whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent focus-visible:ring-offset-2",
+              "bg-brand-accent text-white",
+              "text-brand hover:bg-brand-light"
+            )
+          )}
         </div>
-        <div className="ml-auto flex flex-wrap gap-1 border-l border-brand/20 pl-4">
-          {SECONDARY.map((link) => {
-            const isActive = pathname === link.href;
-            const badgeCount = "badge" in link && link.badge ? badgeCounts[link.badge] : 0;
+
+        {/* DIVIDER */}
+        <div className="border-t border-brand/10" />
+
+        {/* SECONDARY ROW */}
+        <div className="mt-3 flex flex-nowrap items-center gap-1 overflow-x-auto" aria-label={secondarySection.ariaLabel}>
+          {secondaryItems.map((item) => {
+            const active = isActiveHref(pathname, item.href, item.match ?? "prefix");
+            const badgeCount = getBadgeCount(item.badge, badgeCounts);
+            const baseClass = "shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent focus-visible:ring-offset-2";
+
+            if (item.disabled) {
+              return (
+                <span key={item.href} aria-disabled="true" className={`${baseClass} cursor-not-allowed opacity-60`}>
+                  {item.label}
+                </span>
+              );
+            }
+            if (item.external) {
+              return (
+                <a key={item.href} href={item.href} target="_blank" rel="noopener noreferrer" className={`${baseClass} ${active ? "bg-brand-accent text-white" : "text-brand hover:bg-brand-light"}`}>
+                  {item.label}
+                  {badgeCount > 0 && (
+                    <span className="ml-1.5 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-brand-accent-bright px-1.5 text-xs font-semibold text-white">
+                      {badgeCount > 99 ? "99+" : badgeCount}
+                    </span>
+                  )}
+                </a>
+              );
+            }
             return (
               <Link
-                key={link.href}
-                href={link.href}
-                className={`relative rounded-lg px-2 py-1.5 text-sm ${
-                  isActive ? "font-medium text-brand" : "text-brand/70 hover:text-brand"
-                }`}
+                key={item.href}
+                href={item.href}
+                className={`${baseClass} ${active ? "bg-brand-accent text-white" : "text-brand hover:bg-brand-light"}`}
               >
-                {link.label}
+                {item.label}
                 {badgeCount > 0 && (
-                  <span className="ml-1 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-brand-accent px-1 text-xs font-semibold text-white">
+                  <span className="ml-1.5 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-brand-accent-bright px-1.5 text-xs font-semibold text-white">
                     {badgeCount > 99 ? "99+" : badgeCount}
                   </span>
                 )}

@@ -5,7 +5,6 @@
  */
 
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import {
   getPendingCustomCategoriesForAdmin,
@@ -36,35 +35,22 @@ export default async function AdminCustomCategoryReviewPage({
   ]);
 
   return (
-    <div className="min-h-screen bg-brand-light">
-      <div className="mx-auto max-w-5xl px-4 py-8">
-        <div className="flex flex-wrap items-center gap-4">
-          <h1 className="font-display text-2xl font-semibold text-brand">
-            Custom Category Review
-          </h1>
-          <Link href="/admin/reviews" className="text-brand-accent hover:underline">
-            Reviews
-          </Link>
-          <Link href="/admin/users" className="text-brand-accent hover:underline">
-            Users
-          </Link>
-          <Link href="/admin/listings" className="text-brand-accent hover:underline">
-            Listings
-          </Link>
-        </div>
-        <p className="mt-2 text-brand/80">
-          Pending custom categories submitted by producers. <strong>Approve</strong> to move into the public catalog for all producers; <strong>Edit</strong> to fix spelling (stays pending); <strong>Reject</strong> to remove. All actions are logged.
-        </p>
-        <AdminCustomCategoriesClient
-          customCategories={result.list}
-          total={result.total}
-          page={result.page}
-          limit={result.limit}
-          totalPages={result.totalPages}
-          initialSearch={search ?? ""}
-          actionLogs={actionLogs}
-        />
-      </div>
+    <div className="mx-auto max-w-5xl px-4 py-8">
+      <h1 className="font-display text-2xl font-semibold text-brand">
+        Custom Category Review
+      </h1>
+      <p className="mt-2 text-brand/80">
+        Pending custom categories submitted by producers. <strong>Approve</strong> to move into the public catalog for all producers; <strong>Edit</strong> to fix spelling (stays pending); <strong>Reject</strong> to remove. All actions are logged.
+      </p>
+      <AdminCustomCategoriesClient
+        customCategories={result.list}
+        total={result.total}
+        page={result.page}
+        limit={result.limit}
+        totalPages={result.totalPages}
+        initialSearch={search ?? ""}
+        actionLogs={actionLogs}
+      />
     </div>
   );
 }

@@ -1,11 +1,12 @@
 /**
- * Profile: dynamic sections by chosen roles (buyer, producer, caregiver, care seeker).
- * Same user, multi-role; each section links to the same account.
+ * Profile: account (shared) + role sections (buyer, producer, caregiver, care seeker).
+ * Account: name, email, phone, address, delivery default — used by all users.
  */
 
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
+import { AccountForm } from "@/components/AccountForm";
 import { ProducerProfileForm } from "@/components/ProducerProfileForm";
 
 export default async function DashboardProfilePage() {
@@ -22,22 +23,32 @@ export default async function DashboardProfilePage() {
       <div className="mx-auto max-w-2xl px-4 py-8">
         <h1 className="font-display text-2xl font-semibold text-brand">Profile</h1>
         <p className="mt-2 text-brand/80">
-          Manage your account by role. All sections use the same account.
+          Manage your account and preferences. All roles use the same account.
         </p>
 
         <div className="mt-6 space-y-6">
+          <section className="rounded-xl border border-brand/20 bg-white p-6 shadow-sm">
+            <h2 className="font-display text-lg font-semibold text-brand">Account</h2>
+            <p className="mt-1 text-sm text-brand/80">
+              Name, contact, and default delivery address. Used across the app.
+            </p>
+            <div className="mt-4">
+              <AccountForm />
+            </div>
+          </section>
+
           {isBuyer && (
             <section className="rounded-xl border border-brand/20 bg-white p-6 shadow-sm">
               <h2 className="font-display text-lg font-semibold text-brand">Buyer</h2>
               <p className="mt-1 text-sm text-brand/80">
-                Your orders and preferences as a buyer.
+                Your orders and order history.
               </p>
               <p className="mt-3">
                 <Link
                   href="/dashboard/orders"
                   className="text-sm font-medium text-brand-accent hover:underline"
                 >
-                  View your orders →
+                  View order history →
                 </Link>
               </p>
             </section>

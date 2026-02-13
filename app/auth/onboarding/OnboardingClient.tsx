@@ -4,6 +4,9 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { ZipCodeInput } from "@/components/ZipCodeInput";
 import { RoleSelection, type SignUpRoleId } from "@/components/RoleSelection";
+import { apiPost } from "@/lib/client/api-client";
+import { ApiError, apiErrorMessage } from "@/lib/client/api-client";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 export type PrimaryMode = "MARKET" | "SELL" | "CARE";
 
@@ -48,18 +51,12 @@ export function OnboardingClient() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/auth/onboarding", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          zipCode: trimmed,
-          roles,
-          primaryMode: effectivePrimaryMode,
-        }),
+      const data = await apiPost<{ redirect?: string }>("/api/auth/onboarding", {
+        zipCode: trimmed,
+        roles,
+        primaryMode: effectivePrimaryMode,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to save");
-      if (data.redirect) {
+      if (data?.redirect) {
         router.push(data.redirect);
         router.refresh();
         return;
@@ -67,7 +64,7 @@ export function OnboardingClient() {
       router.push("/market");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      setError(err instanceof ApiError ? apiErrorMessage(err) : (err instanceof Error ? err.message : "Something went wrong"));
     } finally {
       setLoading(false);
     }
@@ -107,9 +104,9 @@ export function OnboardingClient() {
         </div>
         <ZipCodeInput value={zip} onChange={setZip} required />
         {error && (
-          <p className="text-sm text-red-600" role="alert">
+          <InlineAlert variant="error" role="alert">
             {error}
-          </p>
+          </InlineAlert>
         )}
         <button
           type="submit"

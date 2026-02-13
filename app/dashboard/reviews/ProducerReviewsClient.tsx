@@ -8,6 +8,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { apiPost } from "@/lib/client/api-client";
+import { ApiError, apiErrorMessage } from "@/lib/client/api-client";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 interface PendingReviewRow {
   id: string;
@@ -33,14 +36,10 @@ export function ProducerReviewsClient({
     setLoadingId(reviewId);
     setError(null);
     try {
-      const res = await fetch(`/api/dashboard/reviews/${reviewId}/approve`, { method: "POST" });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Failed to approve");
-      }
+      await apiPost(`/api/dashboard/reviews/${reviewId}/approve`);
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed");
+      setError(e instanceof ApiError ? apiErrorMessage(e) : (e instanceof Error ? e.message : "Failed"));
     } finally {
       setLoadingId(null);
     }
@@ -51,14 +50,10 @@ export function ProducerReviewsClient({
     setLoadingId(reviewId);
     setError(null);
     try {
-      const res = await fetch(`/api/dashboard/reviews/${reviewId}/flag`, { method: "POST" });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Failed to flag");
-      }
+      await apiPost(`/api/dashboard/reviews/${reviewId}/flag`);
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed");
+      setError(e instanceof ApiError ? apiErrorMessage(e) : (e instanceof Error ? e.message : "Failed"));
     } finally {
       setLoadingId(null);
     }
@@ -68,15 +63,10 @@ export function ProducerReviewsClient({
     setLoadingId(reviewId);
     setError(null);
     try {
-      const res = await fetch(`/api/dashboard/reviews/${reviewId}/message`, { method: "POST" });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Failed to open conversation");
-      }
-      const data = await res.json();
+      const data = await apiPost<{ conversationId: string }>(`/api/dashboard/reviews/${reviewId}/message`);
       router.push(`/dashboard/messages?conversation=${data.conversationId}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed");
+      setError(e instanceof ApiError ? apiErrorMessage(e) : (e instanceof Error ? e.message : "Failed"));
     } finally {
       setLoadingId(null);
     }
@@ -93,9 +83,9 @@ export function ProducerReviewsClient({
   return (
     <div className="mt-8 space-y-6">
       {error && (
-        <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
+        <InlineAlert variant="error" className="mb-4" role="alert">
           {error}
-        </p>
+        </InlineAlert>
       )}
 
       <ul className="space-y-6">

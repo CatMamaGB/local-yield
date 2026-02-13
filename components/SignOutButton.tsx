@@ -6,6 +6,7 @@
 
 import { useClerk } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
+import { apiPost } from "@/lib/client/api-client";
 
 // Check if Clerk is configured (available in client via NEXT_PUBLIC_ env var, replaced at build time)
 const isClerkConfigured = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
@@ -23,9 +24,11 @@ function ClerkSignOutButton() {
       await clerk.signOut({ redirectUrl: "/" });
       return;
     }
-    // Fallback if clerk.signOut is unavailable
-    const res = await fetch("/api/auth/sign-out", { method: "POST" });
-    if (res.ok) {
+    try {
+      await apiPost("/api/auth/sign-out");
+      router.push("/");
+      router.refresh();
+    } catch {
       router.push("/");
       router.refresh();
     }
@@ -49,8 +52,11 @@ function StubSignOutButton() {
   const router = useRouter();
 
   async function handleClick() {
-    const res = await fetch("/api/auth/sign-out", { method: "POST" });
-    if (res.ok) {
+    try {
+      await apiPost("/api/auth/sign-out");
+      router.push("/");
+      router.refresh();
+    } catch {
       router.push("/");
       router.refresh();
     }

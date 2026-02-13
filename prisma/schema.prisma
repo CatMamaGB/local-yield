@@ -97,6 +97,11 @@ model User {
   conversationsAsB Conversation[] @relation("ConversationUserB")
   messagesSent     Message[]
 
+  /// Care relations
+  caregiverListings CareServiceListing[]
+  careBookingsAsSeeker CareBooking[] @relation("CareBookingSeeker")
+  careBookingsAsCaregiver CareBooking[] @relation("CareBookingCaregiver")
+
   adminActionLogs AdminActionLog[]
 }
 
@@ -146,6 +151,17 @@ model CaregiverProfile {
   userId    String   @unique @map("user_id")
   bio       String?
   serviceAreas String? @map("service_areas") /// e.g. "Dogs, cats", or radius + ZIP
+  
+  /// Trust signals
+  yearsExperience Int? @map("years_experience")
+  experienceBackground ExperienceBackground[] @default([])
+  speciesComfort AnimalSpecies[] @default([])
+  tasksComfort CareTaskType[] @default([])
+  introVideoUrl String? @map("intro_video_url")
+  introAudioUrl String? @map("intro_audio_url")
+  referencesText String? @map("references_text")
+  languagesSpoken String? @map("languages_spoken") /// Comma-separated for now (future: enum)
+  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -157,6 +173,10 @@ model CareSeekerProfile {
   id        String   @id @default(cuid())
   userId    String   @unique @map("user_id")
   address   String?  /// Optional; for caregiver travel
+  /// Address fields (if not already on User)
+  addressLine1 String? @map("address_line_1")
+  city      String?
+  state     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -182,6 +202,9 @@ model Product {
   orders      Order[]
   orderItems  OrderItem[]
   eventProducts EventProduct[]
+
+  @@index([userId])
+  @@index([category])
 }
 
 /// Producer-submitted category; pending until admin approves. Once approved, visible to all producers. Rejected = not shown to anyone.
@@ -258,6 +281,11 @@ model Order {
   product    Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
   orderItems OrderItem[]
   reviews    Review[]
+
+  @@index([buyerId])
+  @@index([producerId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 /// Line items for an order (multi-item cart). Snapshot price at time of order.
@@ -270,6 +298,9 @@ model OrderItem {
 
   order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([productId])
 }
 
 // Subscription references producer by userId (producer); add producerId to User if needed later
@@ -304,6 +335,68 @@ enum ReviewType {
   CARE
 }
 
+/// Care booking status
+enum CareBookingStatus {
+  REQUESTED
+  ACCEPTED
+  DECLINED
+  CANCELED
+  COMPLETED
+}
+
+/// Care service types
+enum CareServiceType {
+  DROP_IN
+  OVERNIGHT
+  BOARDING
+  FARM_SITTING
+}
+
+/// Animal species supported
+enum AnimalSpecies {
+  HORSES
+  CATTLE
+  GOATS
+  SHEEP
+  PIGS
+  POULTRY
+  ALPACAS
+  LLAMAS
+  DONKEYS
+  OTHER
+}
+
+/// Care task types (what caregivers can do)
+enum CareTaskType {
+  FEEDING
+  WATERING
+  MUCKING
+  TURNOUT
+  MEDS_ORAL
+  MEDS_INJECTION
+  WOUND_CARE
+  HERD_CHECK
+  EGG_COLLECTION
+  MILKING
+  LAMBING_FOALING_SUPPORT
+  EQUIPMENT_USE
+  OTHER
+}
+
+/// Experience background (how caregivers learned)
+enum ExperienceBackground {
+  GREW_UP_FARM
+  FAMILY_OPERATION
+  RANCH_WORK
+  BARN_MANAGER
+  VET_ASSISTANT
+  SHOW_CIRCUIT
+  SELF_TAUGHT
+  FORMAL_AG_EDU
+  FFA_4H
+  OTHER
+}
+
 model Review {
   id          String     @id @default(cuid())
   reviewerId  String
@@ -329,6 +422,12 @@ model Review {
   producer User  @relation("ReviewProducer", fields: [producerId], references: [id], onDelete: Cascade)
   reviewee User  @relation("ReviewReviewee", fields: [revieweeId], references: [id], onDelete: Cascade)
   order    Order? @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([producerId])
+  @@index([revieweeId])
+  @@index([createdAt])
+  @@index([hiddenByAdmin])
+  @@index([flaggedForAdmin])
 }
 
 /// Shared messaging: Buyer↔Producer (Market), Owner↔Caregiver (Care). One conversation per (userA, userB, optional order/booking).
@@ -344,6 +443,10 @@ model Conversation {
   userA    User     @relation("ConversationUserA", fields: [userAId], references: [id], onDelete: Cascade)
   userB    User     @relation("ConversationUserB", fields: [userBId], references: [id], onDelete: Cascade)
   messages Message[]
+
+  @@index([orderId])
+  @@index([careBookingId])
+  @@index([updatedAt])
 }
 
 model Message {
@@ -355,6 +458,9 @@ model Message {
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([createdAt])
 }
 
 model Subscription {
@@ -395,4 +501,50 @@ model ProducerCustomerNote {
   buyer    User @relation("ProducerCustomerNoteBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
 
   @@unique([producerId, buyerId])
+}
+
+/// Care service listing: what a caregiver offers (e.g. "Drop-in visits for horses").
+model CareServiceListing {
+  id                String   @id @default(cuid())
+  caregiverId       String   @map("caregiver_id")
+  title             String
+  serviceType       CareServiceType @map("service_type")
+  speciesSupported  AnimalSpecies[] @default([]) @map("species_supported")
+  tasksSupported    CareTaskType[] @default([]) @map("tasks_supported")
+  rateCents         Int      @map("rate_cents")
+  rateUnit          String   @map("rate_unit") /// e.g. "per visit", "per night"
+  serviceRadiusMiles Int     @map("service_radius_miles")
+  description       String?
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  caregiver User @relation(fields: [caregiverId], references: [id], onDelete: Cascade)
+  
+  @@index([caregiverId])
+  @@index([active])
+}
+
+/// Care booking: a request from seeker to caregiver.
+model CareBooking {
+  id          String   @id @default(cuid())
+  careSeekerId String  @map("care_seeker_id")
+  caregiverId  String  @map("caregiver_id")
+  status      CareBookingStatus @default(REQUESTED)
+  startAt     DateTime @map("start_at")
+  endAt       DateTime @map("end_at")
+  notes       String?
+  locationZip String   @map("location_zip")
+  species     AnimalSpecies?
+  serviceType CareServiceType? @map("service_type")
+  totalCents  Int      @default(0) @map("total_cents") /// Payments later
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  careSeeker User @relation("CareBookingSeeker", fields: [careSeekerId], references: [id], onDelete: Cascade)
+  caregiver  User @relation("CareBookingCaregiver", fields: [caregiverId], references: [id], onDelete: Cascade)
+  
+  @@index([careSeekerId])
+  @@index([caregiverId])
+  @@index([status])
 }

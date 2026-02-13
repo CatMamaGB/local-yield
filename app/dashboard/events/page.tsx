@@ -5,6 +5,7 @@
 
 import { redirect } from "next/navigation";
 import { requireProducerOrAdmin } from "@/lib/auth";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { EventsClient } from "./EventsClient";
 
 export default async function DashboardEventsPage() {
@@ -15,10 +16,10 @@ export default async function DashboardEventsPage() {
   }
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <h1 className="font-display text-2xl font-semibold text-brand">Events</h1>
-      <p className="mt-2 text-brand/80">
-        Add markets or pop-ups with dates, locations, and hours. They appear on your storefront and in your profile.
-      </p>
+      <PageHeader
+        title="Events"
+        subtitle="Add markets or pop-ups with dates, locations, and hours. They appear on your storefront and in your profile."
+      />
       <EventsClient />
     </div>
   );

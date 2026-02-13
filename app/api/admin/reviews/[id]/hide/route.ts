@@ -4,26 +4,43 @@
 
 import { NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/auth";
-import { hideReviewByAdmin } from "@/lib/reviews";
+import { hideReviewByAdmin, logReviewAdminAction } from "@/lib/reviews";
+import { prisma } from "@/lib/prisma";
+import { ok, fail } from "@/lib/api";
+import { logError } from "@/lib/logger";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { getRequestId } from "@/lib/request-id";
 
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const requestId = getRequestId(request);
+  const rateLimitRes = await checkRateLimit(request);
+  if (rateLimitRes) return rateLimitRes;
+
+  let admin: { id: string };
   try {
-    await requireAdmin();
+    admin = await requireAdmin();
   } catch {
-    return Response.json({ error: "Forbidden" }, { status: 403 });
+    return fail("Forbidden", "FORBIDDEN", 403);
   }
   const { id } = await params;
-  if (!id) return Response.json({ error: "Missing review id" }, { status: 400 });
+  if (!id) return fail("Missing review id", "VALIDATION_ERROR", 400);
   try {
+    const review = await prisma.review.findUnique({
+      where: { id },
+      select: { hiddenByAdmin: true, flaggedForAdmin: true },
+    });
+    if (!review) return fail("Review not found", "NOT_FOUND", 404);
     await hideReviewByAdmin(id);
-    return Response.json({ ok: true });
+    await logReviewAdminAction(admin.id, "REVIEW_HIDE", id, {
+      previousHidden: review.hiddenByAdmin,
+      previousFlagged: review.flaggedForAdmin,
+    });
+    return ok(undefined);
   } catch (e) {
-    return Response.json(
-      { error: e instanceof Error ? e.message : "Failed to hide review" },
-      { status: 500 }
-    );
+    logError("admin/reviews/[id]/hide/POST", e, { requestId, path: "/api/admin/reviews/[id]/hide", method: "POST" });
+    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
   }
 }

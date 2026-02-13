@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Playfair_Display, Inter } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
-import { Navbar } from "@/components/Navbar";
+import { NavbarWrapper } from "@/components/NavbarWrapper";
+import { FooterWrapper } from "@/components/FooterWrapper";
 import { CartProvider } from "@/contexts/CartContext";
 import { getCurrentUser } from "@/lib/auth";
 import "./globals.css";
@@ -41,8 +42,11 @@ export default async function RootLayout({
   const clerkPublishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
   const content = (
     <CartProvider>
-      <Navbar user={user} />
-      {children}
+      <div className="flex min-h-screen flex-col">
+        <NavbarWrapper user={user} />
+        <div className="flex-1">{children}</div>
+        <FooterWrapper />
+      </div>
     </CartProvider>
   );
   return (

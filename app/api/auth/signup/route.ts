@@ -9,6 +9,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ok, fail, parseJsonBody } from "@/lib/api";
 import { SignupSchema } from "@/lib/validators";
+import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limit";
 import { PlatformUse, Role, PrimaryMode } from "@prisma/client";
 
 const SIGNUP_TO_PRISMA_ROLE: Record<string, Role> = {
@@ -40,6 +41,9 @@ function derivePlatformUse(roles: string[], primaryMode: PrimaryMode): PlatformU
 }
 
 export async function POST(request: NextRequest) {
+  const rateLimitRes = await checkRateLimit(request, RATE_LIMIT_PRESETS.AUTH);
+  if (rateLimitRes) return rateLimitRes;
+
   try {
     const { data: body, error: parseError } = await parseJsonBody(request);
     if (parseError) return fail(parseError, "INVALID_JSON", 400);

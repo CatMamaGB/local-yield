@@ -3,18 +3,23 @@
  * POST /api/dashboard/events — create event (name, location, eventDate, eventHours?).
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireProducerOrAdmin } from "@/lib/auth";
+import { ok, fail, parseJsonBody } from "@/lib/api";
+import { logError } from "@/lib/logger";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { getRequestId } from "@/lib/request-id";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const requestId = getRequestId(request);
   try {
     const user = await requireProducerOrAdmin();
     const events = await prisma.event.findMany({
       where: { userId: user.id },
       orderBy: { eventDate: "asc" },
     });
-    return NextResponse.json({
+    return ok({
       events: events.map((e) => ({
         id: e.id,
         name: e.name,
@@ -25,25 +30,28 @@ export async function GET() {
       })),
     });
   } catch (e) {
+    logError("dashboard/events/GET", e, { requestId, path: "/api/dashboard/events", method: "GET" });
     const message = e instanceof Error ? e.message : "Forbidden";
-    return NextResponse.json({ error: message }, { status: 403 });
+    return fail(message, "FORBIDDEN", 403);
   }
 }
 
 export async function POST(request: NextRequest) {
+  const requestId = getRequestId(request);
+  const rateLimitRes = await checkRateLimit(request);
+  if (rateLimitRes) return rateLimitRes;
+
   try {
     const user = await requireProducerOrAdmin();
-    const body = await request.json().catch(() => ({}));
-    const name = String(body.name ?? "").trim();
-    const location = String(body.location ?? "").trim();
-    if (!name || !location) {
-      return NextResponse.json({ error: "Name and location required" }, { status: 400 });
-    }
-    const eventDate = body.eventDate ? new Date(body.eventDate) : null;
-    if (!eventDate || Number.isNaN(eventDate.getTime())) {
-      return NextResponse.json({ error: "Valid event date required" }, { status: 400 });
-    }
-    const eventHours = body.eventHours != null ? String(body.eventHours).trim() || null : null;
+    const { data: body, error: parseError } = await parseJsonBody(request);
+    if (parseError) return fail(parseError, "INVALID_JSON", 400);
+
+    const name = String(body?.name ?? "").trim();
+    const location = String(body?.location ?? "").trim();
+    if (!name || !location) return fail("Name and location required", "VALIDATION_ERROR", 400);
+    const eventDate = body?.eventDate ? new Date(body.eventDate) : null;
+    if (!eventDate || Number.isNaN(eventDate.getTime())) return fail("Valid event date required", "VALIDATION_ERROR", 400);
+    const eventHours = body?.eventHours != null ? String(body.eventHours).trim() || null : null;
     const event = await prisma.event.create({
       data: {
         userId: user.id,
@@ -51,10 +59,10 @@ export async function POST(request: NextRequest) {
         location,
         eventDate,
         eventHours,
-        allowPreorder: Boolean(body.allowPreorder !== false),
+        allowPreorder: Boolean(body?.allowPreorder !== false),
       },
     });
-    return NextResponse.json({
+    return ok({
       event: {
         id: event.id,
         name: event.name,
@@ -64,10 +72,9 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Failed to create event";
-    return NextResponse.json(
-      { error: message },
-      { status: e instanceof Error && e.message === "Forbidden" ? 403 : 400 }
-    );
+    logError("dashboard/events/POST", e, { requestId, path: "/api/dashboard/events", method: "POST" });
+    const message = e instanceof Error ? e.message : "";
+    if (message === "Forbidden") return fail(message, "FORBIDDEN", 403);
+    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
   }
 }

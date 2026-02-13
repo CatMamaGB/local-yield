@@ -34,21 +34,24 @@ export default async function DashboardReviewsPage() {
     <div className="mx-auto max-w-4xl px-4 py-8">
       <h1 className="font-display text-2xl font-semibold text-brand">Review management</h1>
       <p className="mt-2 text-brand/80">
-        Pending reviews are visible only to you until you approve them or they are resolved. Choose how to handle each one below.
+        Pending reviews are visible only to you until you take action. Choose how to handle each review below.
       </p>
 
       {/* How reviews work */}
       <section className="mt-6 rounded-xl border border-brand/20 bg-white p-6">
-        <h2 className="font-display text-lg font-semibold text-brand">How reviews work</h2>
+        <h2 className="font-display text-lg font-semibold text-brand">Review workflow & actions</h2>
+        <p className="mt-2 text-sm text-brand/70 mb-4">
+          When a buyer leaves a review, it starts as <strong>Pending</strong> and is only visible to you. You have three options:
+        </p>
         <div className="mt-4 space-y-4">
           <div className="flex gap-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-100">
               <span className="text-lg font-semibold text-green-800">✓</span>
             </div>
             <div>
-              <h3 className="font-medium text-brand">Approve</h3>
+              <h3 className="font-medium text-brand">Approve — Make review public</h3>
               <p className="mt-1 text-sm text-brand/80">
-                Publishes the review immediately. It will appear on your storefront and the buyer&apos;s order page.
+                Click <strong>Approve</strong> to publish the review immediately. Once approved, the review becomes visible on your storefront and the buyer&apos;s order page. This action cannot be undone.
               </p>
             </div>
           </div>
@@ -57,9 +60,9 @@ export default async function DashboardReviewsPage() {
               <span className="text-lg font-semibold text-blue-800">💬</span>
             </div>
             <div>
-              <h3 className="font-medium text-brand">Message</h3>
+              <h3 className="font-medium text-brand">Message — Resolve privately first</h3>
               <p className="mt-1 text-sm text-brand/80">
-                Opens a private conversation with the buyer. The review stays private while you resolve their concern. After resolution, you can approve or the buyer can update their review.
+                Click <strong>Message</strong> to open a private conversation with the buyer. The review stays private while you discuss and resolve their concern. After you&apos;ve resolved the issue, you can then approve the review, or the buyer may update their review based on the resolution.
               </p>
             </div>
           </div>
@@ -68,9 +71,9 @@ export default async function DashboardReviewsPage() {
               <span className="text-lg font-semibold text-yellow-800">⚠</span>
             </div>
             <div>
-              <h3 className="font-medium text-brand">Flag</h3>
+              <h3 className="font-medium text-brand">Flag — Send to admin for review</h3>
               <p className="mt-1 text-sm text-brand/80">
-                Sends the review to admin for evaluation. The review stays private until an admin reviews it. Use this if the review seems unfair, off-topic, or violates guidelines.
+                Click <strong>Flag</strong> if the review seems unfair, off-topic, or violates guidelines. The review is sent to admin for evaluation and stays private until an admin reviews it. Use this when you believe the review doesn&apos;t accurately reflect the transaction or contains inappropriate content.
               </p>
             </div>
           </div>

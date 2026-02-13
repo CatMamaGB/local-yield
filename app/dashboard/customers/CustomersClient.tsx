@@ -5,6 +5,7 @@
  */
 
 import { useState } from "react";
+import { apiPatch } from "@/lib/client/api-client";
 
 interface CustomersClientProps {
   csvContent: string;
@@ -51,12 +52,10 @@ export function CustomerNoteField({ buyerId, initialNote }: NoteFieldProps) {
     setSaving(true);
     setSaved(false);
     try {
-      const res = await fetch("/api/dashboard/customers/note", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ buyerId, note: value }),
-      });
-      if (res.ok) setSaved(true);
+      await apiPatch("/api/dashboard/customers/note", { buyerId, note: value });
+      setSaved(true);
+    } catch {
+      // Keep saved false
     } finally {
       setSaving(false);
     }

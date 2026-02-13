@@ -6,6 +6,11 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/client/api-client";
+import { ApiError, apiErrorMessage } from "@/lib/client/api-client";
+import { InlineAlert } from "@/components/ui/InlineAlert";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
 
 interface Product {
   id: string;
@@ -31,15 +36,10 @@ export function ProductsClient() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/products");
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Failed to load products");
-      }
-      const data = await res.json();
+      const data = await apiGet<{ products?: Product[] }>("/api/products");
       setProducts(data.products ?? []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load");
+      setError(e instanceof ApiError ? apiErrorMessage(e) : (e instanceof Error ? e.message : "Failed to load"));
     } finally {
       setLoading(false);
     }
@@ -52,16 +52,15 @@ export function ProductsClient() {
   async function handleDelete(id: string) {
     if (!confirm("Delete this product?")) return;
     try {
-      const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Delete failed");
+      await apiDelete(`/api/products/${id}`);
       await load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Delete failed");
+      alert(e instanceof ApiError ? apiErrorMessage(e) : (e instanceof Error ? e.message : "Delete failed"));
     }
   }
 
-  if (loading) return <p className="text-brand/70">Loading products…</p>;
-  if (error) return <p className="text-red-600">{error}</p>;
+  if (loading) return <LoadingSkeleton rows={5} />;
+  if (error) return <InlineAlert variant="error">{error}</InlineAlert>;
 
   return (
     <div className="space-y-6">
@@ -92,9 +91,11 @@ export function ProductsClient() {
       )}
 
       {products.length === 0 ? (
-        <p className="rounded-xl border border-brand/20 bg-white p-8 text-center text-brand/70">
-          No products yet. Click &quot;Add product&quot; to list your first item.
-        </p>
+        <EmptyState
+          title="No products yet"
+          body="Click Add product to list your first item."
+          className="mt-4"
+        />
       ) : (
         <ul className="space-y-3">
           {products.map((p) => (
@@ -161,27 +162,19 @@ function AddProductForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
     }
     setSubmitting(true);
     try {
-      const res = await fetch("/api/products", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: title.trim(),
-          price: p,
-          description: description.trim() || undefined,
-          category: category.trim() || "Other",
-          imageUrl: imageUrl.trim() || undefined,
-          delivery,
-          pickup,
-          quantityAvailable: quantityAvailable === "" ? undefined : parseInt(quantityAvailable, 10),
-        }),
+      await apiPost("/api/products", {
+        title: title.trim(),
+        price: p,
+        description: description.trim() || undefined,
+        category: category.trim() || "Other",
+        imageUrl: imageUrl.trim() || undefined,
+        delivery,
+        pickup,
+        quantityAvailable: quantityAvailable === "" ? undefined : parseInt(quantityAvailable, 10),
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Failed to create");
-      }
       onDone();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed");
+      alert(err instanceof ApiError ? apiErrorMessage(err) : (err instanceof Error ? err.message : "Failed"));
     } finally {
       setSubmitting(false);
     }
@@ -295,8 +288,7 @@ function EditProductForm({
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/products/${productId}`)
-      .then((r) => r.json())
+    apiGet<{ product: Product }>(`/api/products/${productId}`)
       .then((data) => {
         const p = data.product;
         if (p) {
@@ -323,24 +315,16 @@ function EditProductForm({
     }
     setSubmitting(true);
     try {
-      const res = await fetch(`/api/products/${productId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: title.trim(),
-          price: p,
-          description: description.trim() || undefined,
-          category: category.trim() || "Other",
-          imageUrl: imageUrl.trim() || null,
-          delivery,
-          pickup,
-          quantityAvailable: quantityAvailable === "" ? null : parseInt(quantityAvailable, 10),
-        }),
+      await apiPatch(`/api/products/${productId}`, {
+        title: title.trim(),
+        price: p,
+        description: description.trim() || undefined,
+        category: category.trim() || "Other",
+        imageUrl: imageUrl.trim() || null,
+        delivery,
+        pickup,
+        quantityAvailable: quantityAvailable === "" ? null : parseInt(quantityAvailable, 10),
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Failed to update");
-      }
       onDone();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed");

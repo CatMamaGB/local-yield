@@ -10,6 +10,7 @@ import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRef, useState, useEffect, useMemo } from "react";
+import { apiGet, apiPost } from "@/lib/client/api-client";
 
 // ——— Nested category structure: groups contain subcategories ———
 export interface ProductSubcategory {
@@ -192,8 +193,7 @@ export function ProductCatalogForm({
   const [addingCustom, setAddingCustom] = useState(false);
 
   useEffect(() => {
-    fetch("/api/catalog/categories")
-      .then((r) => r.json())
+    apiGet<{ customCategories?: CustomCategoryOption[] }>("/api/catalog/categories")
       .then((data) => {
         if (data.customCategories) setCustomCategories(data.customCategories);
       })
@@ -243,19 +243,10 @@ export function ProductCatalogForm({
     if (!name) return;
     setAddingCustom(true);
     try {
-      const res = await fetch("/api/catalog/custom-categories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          groupId: addCustomGroupId || undefined,
-        }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Failed to add category");
-      }
-      const data = await res.json();
+      const data = await apiPost<{ customCategory: CustomCategoryOption }>(
+        "/api/catalog/custom-categories",
+        { name, groupId: addCustomGroupId || undefined }
+      );
       setCustomCategories((prev) => [...prev, data.customCategory]);
       setValue("category", data.customCategory.id, { shouldValidate: true });
       setAddCustomName("");

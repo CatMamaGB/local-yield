@@ -1,8 +1,12 @@
 /**
- * Trust & kindness system: resolution window, structured reviews, producer response, admin moderation.
- * Buyer cannot publish negative public review until resolution window passes; producers can respond.
+ * Trust infrastructure:
+ * - Resolution window
+ * - Structured reviews
+ * - Producer response
+ * - Admin moderation
  */
 
+import type { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 
 /** Rating at or below this is considered "negative" for resolution-window gating. */
@@ -196,6 +200,28 @@ export async function flagReviewByProducer(reviewId: string, producerId: string)
   });
 }
 
+/** Log admin action on a review for audit trail. Details default to {}; undefined values are stripped for Prisma JSON. */
+export async function logReviewAdminAction(
+  performedById: string,
+  action: string,
+  reviewId: string,
+  details?: Record<string, unknown>
+) {
+  const safeDetails = details ?? {};
+  const jsonDetails = Object.fromEntries(
+    Object.entries(safeDetails).filter(([, v]) => v !== undefined)
+  ) as Prisma.InputJsonValue;
+  return prisma.adminActionLog.create({
+    data: {
+      performedById,
+      action,
+      entityType: "Review",
+      entityId: reviewId,
+      details: jsonDetails,
+    },
+  });
+}
+
 /** Admin moderation: hide abusive or off-topic review. */
 export async function hideReviewByAdmin(reviewId: string) {
   return prisma.review.update({
@@ -247,10 +273,10 @@ export async function getReviewsForAdmin(includeHidden = false) {
   });
 }
 
-/** Admin: get only flagged reviews for the flagged dashboard. */
+/** Admin: get only flagged reviews for the flagged dashboard (Market and Care). */
 export async function getFlaggedReviewsForAdmin() {
   return prisma.review.findMany({
-    where: { flaggedForAdmin: true, type: "MARKET" },
+    where: { flaggedForAdmin: true },
     include: {
       reviewer: { select: { id: true, name: true, email: true } },
       producer: { select: { id: true, name: true, email: true } },

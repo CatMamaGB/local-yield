@@ -8,6 +8,9 @@ import { prisma } from "@/lib/prisma";
 import { requireProducerOrAdmin } from "@/lib/auth";
 import { ok, fail, parseJsonBody } from "@/lib/api";
 import { UpdateOrderStatusSchema } from "@/lib/validators";
+import { logError } from "@/lib/logger";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { getRequestId } from "@/lib/request-id";
 
 type OrderStatus = "PENDING" | "PAID" | "FULFILLED" | "CANCELED" | "REFUNDED";
 
@@ -30,14 +33,18 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const requestId = getRequestId(request);
+  const rateLimitRes = await checkRateLimit(request);
+  if (rateLimitRes) return rateLimitRes;
+
   try {
     const user = await requireProducerOrAdmin();
     const { id } = await params;
 
-    // Fetch current order
+    // Fetch current order (include viaCash for paid-state guardrail)
     const order = await prisma.order.findUnique({
       where: { id },
-      select: { id: true, status: true, producerId: true },
+      select: { id: true, status: true, producerId: true, viaCash: true },
     });
 
     if (!order) {
@@ -78,6 +85,15 @@ export async function PATCH(
       );
     }
 
+    // Only allow PENDING → PAID when order is cash (viaCash). Card payments must be confirmed via Stripe webhook.
+    if (newStatus === "PAID" && currentStatus === "PENDING" && !order.viaCash) {
+      return fail(
+        "Order cannot be marked PAID here; card payments require Stripe confirmation",
+        "INVALID_TRANSITION",
+        400
+      );
+    }
+
     // Prepare update data
     const updateData: { status: OrderStatus; fulfilledAt?: Date; paidAt?: Date } = {
       status: newStatus,
@@ -99,10 +115,10 @@ export async function PATCH(
 
     return ok({ status: newStatus });
   } catch (error) {
-    console.error("Order status update error:", error);
+    logError("orders/PATCH", error, { requestId, path: "/api/orders/[id]", method: "PATCH" });
     if (error instanceof Error && error.message.includes("Forbidden")) {
       return fail(error.message, "FORBIDDEN", 403);
     }
-    return fail("Internal server error", "INTERNAL_ERROR", 500);
+    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
   }
 }

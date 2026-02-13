@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { apiGet } from "@/lib/client/api-client";
 
 interface RequestRow {
   id: string;
@@ -36,12 +37,10 @@ export function DemandNearYou({ producerZip, radiusMiles = 25 }: DemandNearYouPr
       setLoading(true);
       setError(null);
     });
-    fetch(`/api/item-requests?zip=${encodeURIComponent(zip)}&radius=${radiusMiles}`)
-      .then((res) => res.json())
+    apiGet<{ requests?: RequestRow[] }>(`/api/item-requests?zip=${encodeURIComponent(zip)}&radius=${radiusMiles}`)
       .then((data) => {
         if (cancelled) return;
-        if (data.requests) setRequests(data.requests);
-        else setRequests([]);
+        setRequests(data.requests ?? []);
       })
       .catch(() => {
         if (!cancelled) setError("Failed to load");

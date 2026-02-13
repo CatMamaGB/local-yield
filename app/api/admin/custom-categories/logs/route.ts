@@ -4,18 +4,26 @@
  */
 
 import { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { getCustomCategoryActionLogs } from "@/lib/catalog-categories";
+import { ok, fail } from "@/lib/api";
+import { logError } from "@/lib/logger";
+import { getRequestId } from "@/lib/request-id";
 
 export async function GET(request: NextRequest) {
+  const requestId = getRequestId(request);
   try {
     await requireAdmin();
   } catch {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return fail("Forbidden", "FORBIDDEN", 403);
   }
-  const { searchParams } = new URL(request.url);
-  const limit = Math.min(100, Math.max(10, parseInt(searchParams.get("limit") ?? "50", 10) || 50));
-  const logs = await getCustomCategoryActionLogs(limit);
-  return NextResponse.json({ logs });
+  try {
+    const { searchParams } = new URL(request.url);
+    const limit = Math.min(100, Math.max(10, parseInt(searchParams.get("limit") ?? "50", 10) || 50));
+    const logs = await getCustomCategoryActionLogs(limit);
+    return ok({ logs });
+  } catch (e) {
+    logError("admin/custom-categories/logs/GET", e, { requestId, path: "/api/admin/custom-categories/logs", method: "GET" });
+    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
+  }
 }

@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * Main navigation for The Local Yield.
- * Mode Switcher (Market | Sell | Care) when user has multiple roles.
- * Rover-style: Browse, Care, Sell. Mobile-responsive with hamburger menu.
+ * Main navigation: brand + global actions only. Navbar is dumb; layouts are smart.
+ * Only derives: inApp, showMarketNav, showModeSwitcher, showCart (from capabilities).
+ * No raw user fields; no isBuyerOnly / isProducerOnly / isCareOnly.
  */
 
 import { useState } from "react";
@@ -12,8 +12,9 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { CartLink } from "@/components/CartLink";
 import { SignOutButton } from "@/components/SignOutButton";
-import { isCareEnabled } from "@/lib/feature-flags";
-import { hasMultipleModes } from "@/lib/authz";
+import { getUserCapabilities } from "@/lib/authz";
+import { isAppArea } from "@/lib/nav-routes";
+import { apiPatch } from "@/lib/client/api-client";
 import type { SessionUser } from "@/lib/auth";
 
 interface NavbarProps {
@@ -23,35 +24,23 @@ interface NavbarProps {
 export function Navbar({ user }: NavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
-  const isProducer =
-    user?.role === "PRODUCER" || user?.role === "ADMIN" || user?.isProducer === true;
-  const isCare = user?.isCaregiver === true || user?.isHomesteadOwner === true;
-  const showModeSwitcher = user && hasMultipleModes(user);
+  const caps = getUserCapabilities(user);
+  const inApp = isAppArea(pathname);
 
-  // Context detection: are we in dashboard/producer mode?
-  const inDashboard = pathname.startsWith("/dashboard");
-  const inMarket = pathname.startsWith("/market");
-  const inCare = pathname.startsWith("/care");
-
-  // Show market nav (Browse, About, Cart) unless in dashboard
-  const showMarketNav = !inDashboard;
-  // Show dashboard links when in dashboard or when user is producer/admin
-  const showDashboardLinks = inDashboard && isProducer;
+  const showMarketNav = !inApp;
+  const showModeSwitcher = caps.isMultiMode;
+  const showCart = showMarketNav && user && !caps.canSell;
 
   async function setPrimaryMode(mode: "MARKET" | "SELL" | "CARE") {
     try {
-      await fetch("/api/auth/primary-mode", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ primaryMode: mode }),
-      });
+      await apiPatch("/api/auth/primary-mode", { primaryMode: mode });
     } catch {
-      // best effort
+      // best effort; mode switch still navigates
     }
   }
 
   return (
-    <header className="sticky top-0 z-50 border-b border-brand/20 bg-white/95 backdrop-blur">
+    <header className="sticky top-0 z-50 border-b border-brand/10 bg-white/95 backdrop-blur shadow-farmhouse">
       <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 font-display text-xl font-semibold text-brand">
@@ -72,7 +61,7 @@ export function Navbar({ user }: NavbarProps) {
             >
               Market
             </Link>
-            {isProducer && (
+            {caps.canSell && (
               <Link
                 href="/dashboard"
                 onClick={() => setPrimaryMode("SELL")}
@@ -83,7 +72,7 @@ export function Navbar({ user }: NavbarProps) {
                 Sell
               </Link>
             )}
-            {isCare && isCareEnabled() && (
+            {caps.canCare && (
               <Link
                 href="/care"
                 onClick={() => setPrimaryMode("CARE")}
@@ -97,46 +86,25 @@ export function Navbar({ user }: NavbarProps) {
           </div>
         )}
 
-        {/* Desktop nav: context-aware primary actions */}
+        {/* Desktop nav: public primary actions — Browse, Care, About, Cart */}
         {showMarketNav && (
           <div className="hidden md:flex items-center gap-5">
             <Link href="/market/browse" className="font-medium text-brand hover:text-brand-accent">
               Browse
             </Link>
-            {isCareEnabled() && !inCare && (
-              <Link href="/care" className="font-medium text-brand hover:text-brand-accent">
-                Become a Caregiver
-              </Link>
-            )}
-            {!isProducer && (
-              <Link href="/auth/signup" className="font-medium text-brand hover:text-brand-accent">
-                Sell
-              </Link>
-            )}
+            <Link
+              href="/care"
+              className={`font-medium transition ${pathname.startsWith("/care") ? "text-brand-accent" : "text-brand/80 hover:text-brand-accent"}`}
+            >
+              Care
+            </Link>
             <Link href="/about" className="text-brand/80 hover:text-brand-accent">
               About
             </Link>
-            <CartLink />
+            {showCart && <CartLink />}
           </div>
         )}
         
-        {showDashboardLinks && (
-          <div className="hidden md:flex items-center gap-4">
-            <Link href="/dashboard/orders" className="text-sm font-medium text-brand hover:text-brand-accent">
-              Orders
-            </Link>
-            <Link href="/dashboard/messages" className="text-sm font-medium text-brand hover:text-brand-accent">
-              Messages
-            </Link>
-            <Link href="/dashboard/products" className="text-sm font-medium text-brand hover:text-brand-accent">
-              Products
-            </Link>
-            <Link href="/dashboard/reviews" className="text-sm font-medium text-brand hover:text-brand-accent">
-              Reviews
-            </Link>
-          </div>
-        )}
-
         {/* Desktop nav: account */}
         <div className="hidden md:flex items-center gap-4">
           {!user ? (
@@ -144,20 +112,19 @@ export function Navbar({ user }: NavbarProps) {
               <Link href="/auth/login" className="text-brand hover:text-brand-accent">
                 Sign in
               </Link>
-              <Link href="/auth/signup" className="rounded bg-brand px-4 py-2 text-white hover:bg-brand/90">
+              <Link href="/auth/signup" className="rounded-lg bg-brand-accent px-4 py-2 text-sm font-medium text-white shadow-farmhouse transition hover:bg-brand-accent/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent focus-visible:ring-offset-2">
                 Sign up
               </Link>
             </>
           ) : (
             <>
-              {isProducer && (
+              {caps.canAdmin ? (
+                <Link href="/admin" className="text-brand/80 hover:text-brand-accent">
+                  Admin
+                </Link>
+              ) : (
                 <Link href="/dashboard" className="text-brand/80 hover:text-brand-accent">
                   Dashboard
-                </Link>
-              )}
-              {user.role === "ADMIN" && (
-                <Link href="/admin/users" className="text-brand/80 hover:text-brand-accent">
-                  Admin
                 </Link>
               )}
               <SignOutButton />
@@ -167,7 +134,7 @@ export function Navbar({ user }: NavbarProps) {
 
         {/* Mobile: cart (market only) + menu button */}
         <div className="flex md:hidden items-center gap-3">
-          {showMarketNav && <CartLink />}
+          {showCart && <CartLink />}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="p-2 text-brand hover:text-brand-accent"
@@ -202,12 +169,12 @@ export function Navbar({ user }: NavbarProps) {
                 <Link href="/market" onClick={() => { setPrimaryMode("MARKET"); setMobileMenuOpen(false); }} className="rounded-md px-3 py-2 text-sm font-medium bg-brand-light/50 text-brand">
                   Market
                 </Link>
-                {isProducer && (
+                {caps.canSell && (
                   <Link href="/dashboard" onClick={() => { setPrimaryMode("SELL"); setMobileMenuOpen(false); }} className="rounded-md px-3 py-2 text-sm font-medium bg-brand-light/50 text-brand">
                     Sell
                   </Link>
                 )}
-                {isCare && isCareEnabled() && (
+                {caps.canCare && (
                   <Link href="/care" onClick={() => { setPrimaryMode("CARE"); setMobileMenuOpen(false); }} className="rounded-md px-3 py-2 text-sm font-medium bg-brand-light/50 text-brand">
                     Care
                   </Link>
@@ -223,24 +190,13 @@ export function Navbar({ user }: NavbarProps) {
                 >
                   Browse
                 </Link>
-                {isCareEnabled() && !inCare && (
-                  <Link
-                    href="/care"
-                    className="block font-medium text-brand hover:text-brand-accent"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Become a Caregiver
-                  </Link>
-                )}
-                {!isProducer && (
-                  <Link
-                    href="/auth/signup"
-                    className="block font-medium text-brand hover:text-brand-accent"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Sell
-                  </Link>
-                )}
+                <Link
+                  href="/care"
+                  className={`block font-medium transition ${pathname.startsWith("/care") ? "text-brand-accent" : "text-brand/80 hover:text-brand-accent"}`}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Care
+                </Link>
                 <Link
                   href="/about"
                   className="block text-brand/80 hover:text-brand-accent"
@@ -248,22 +204,11 @@ export function Navbar({ user }: NavbarProps) {
                 >
                   About
                 </Link>
-              </>
-            )}
-            {showDashboardLinks && (
-              <>
-                <Link href="/dashboard/orders" className="block font-medium text-brand hover:text-brand-accent" onClick={() => setMobileMenuOpen(false)}>
-                  Orders
-                </Link>
-                <Link href="/dashboard/messages" className="block font-medium text-brand hover:text-brand-accent" onClick={() => setMobileMenuOpen(false)}>
-                  Messages
-                </Link>
-                <Link href="/dashboard/products" className="block font-medium text-brand hover:text-brand-accent" onClick={() => setMobileMenuOpen(false)}>
-                  Products
-                </Link>
-                <Link href="/dashboard/reviews" className="block font-medium text-brand hover:text-brand-accent" onClick={() => setMobileMenuOpen(false)}>
-                  Reviews
-                </Link>
+                {showCart && (
+                  <div onClick={() => setMobileMenuOpen(false)}>
+                    <CartLink />
+                  </div>
+                )}
               </>
             )}
             <div className="pt-3 border-t border-brand/20 space-y-3">
@@ -278,7 +223,7 @@ export function Navbar({ user }: NavbarProps) {
                   </Link>
                   <Link
                     href="/auth/signup"
-                    className="block rounded bg-brand px-4 py-2 text-white hover:bg-brand/90 text-center"
+                    className="block rounded-lg bg-brand-accent px-4 py-2 text-sm font-medium text-white text-center shadow-farmhouse transition hover:bg-brand-accent/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent focus-visible:ring-offset-2"
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     Sign up
@@ -286,22 +231,21 @@ export function Navbar({ user }: NavbarProps) {
                 </>
               ) : (
                 <>
-                  {isProducer && (
+                  {caps.canAdmin ? (
+                    <Link
+                      href="/admin"
+                      className="block text-brand/80 hover:text-brand-accent"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      Admin
+                    </Link>
+                  ) : (
                     <Link
                       href="/dashboard"
                       className="block text-brand/80 hover:text-brand-accent"
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       Dashboard
-                    </Link>
-                  )}
-                  {user.role === "ADMIN" && (
-                    <Link
-                      href="/admin/users"
-                      className="block text-brand/80 hover:text-brand-accent"
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      Admin
                     </Link>
                   )}
                   <div onClick={() => setMobileMenuOpen(false)}>

@@ -5,8 +5,9 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { requireProducerOrAdmin } from "@/lib/auth";
-import { getOrdersForProducer } from "@/lib/orders";
-import { formatDate } from "@/lib/utils";
+import { getPaidOrdersForProducer } from "@/lib/orders";
+import { getProducerMetrics } from "@/lib/producer-metrics";
+import { formatDate, formatPrice } from "@/lib/utils";
 
 export default async function DashboardAnalyticsPage() {
   let user;
@@ -16,32 +17,37 @@ export default async function DashboardAnalyticsPage() {
     redirect("/dashboard");
   }
 
-  const orders = await getOrdersForProducer(user.id);
-  const paidOrFulfilled = orders.filter((o) => o.status === "PAID" || o.status === "FULFILLED");
-  const totalRevenueCents = paidOrFulfilled.reduce((sum, o) => sum + (o.totalCents ?? 0), 0);
-  const orderCount = paidOrFulfilled.length;
-  const avgOrderCents = orderCount > 0 ? Math.round(totalRevenueCents / orderCount) : 0;
+  const [orders, metrics] = await Promise.all([
+    getPaidOrdersForProducer(user.id),
+    getProducerMetrics(user.id),
+  ]);
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
       <h1 className="font-display text-2xl font-semibold text-brand">Sales Analytics</h1>
       <p className="mt-2 text-brand/80">Revenue, order count, and recent sales. Use this for your own records.</p>
 
-      <section className="mt-8 grid gap-4 sm:grid-cols-3">
+      <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-brand/20 bg-white p-6 shadow-sm">
           <p className="text-sm font-medium text-brand/70">Total revenue</p>
           <p className="mt-1 font-display text-2xl font-semibold text-brand">
-            ${(totalRevenueCents / 100).toFixed(2)}
+            {formatPrice(metrics.lifetimeRevenue)}
           </p>
         </div>
         <div className="rounded-xl border border-brand/20 bg-white p-6 shadow-sm">
           <p className="text-sm font-medium text-brand/70">Orders (paid/fulfilled)</p>
-          <p className="mt-1 font-display text-2xl font-semibold text-brand">{orderCount}</p>
+          <p className="mt-1 font-display text-2xl font-semibold text-brand">{metrics.lifetimeOrdersPaidOrFulfilled}</p>
         </div>
         <div className="rounded-xl border border-brand/20 bg-white p-6 shadow-sm">
           <p className="text-sm font-medium text-brand/70">Average order</p>
           <p className="mt-1 font-display text-2xl font-semibold text-brand">
-            ${(avgOrderCents / 100).toFixed(2)}
+            {formatPrice(metrics.avgOrderValue)}
+          </p>
+        </div>
+        <div className="rounded-xl border border-brand/20 bg-white p-6 shadow-sm">
+          <p className="text-sm font-medium text-brand/70">Revenue (30d)</p>
+          <p className="mt-1 font-display text-2xl font-semibold text-brand">
+            {formatPrice(metrics.revenue30d)}
           </p>
         </div>
       </section>
@@ -49,11 +55,11 @@ export default async function DashboardAnalyticsPage() {
       <section className="mt-8 rounded-xl border border-brand/20 bg-white p-6 shadow-sm">
         <h2 className="font-display text-lg font-semibold text-brand">Sales history</h2>
         <p className="mt-1 text-sm text-brand/70">Recent paid or fulfilled orders.</p>
-        {paidOrFulfilled.length === 0 ? (
+        {orders.length === 0 ? (
           <p className="mt-6 text-brand/60">No sales yet. Orders will appear here once paid or fulfilled.</p>
         ) : (
           <ul className="mt-6 space-y-3">
-            {paidOrFulfilled.slice(0, 20).map((o) => {
+            {orders.slice(0, 20).map((o) => {
               const title =
                 o.orderItems.length > 0
                   ? o.orderItems.length === 1

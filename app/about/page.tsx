@@ -35,9 +35,9 @@ export default function AboutPage() {
               marketplace that functions as a digital, always-accessible farmers market.
             </li>
             <li>
-              <strong className="text-brand">The Local Yield Care</strong> — a service-based care
-              marketplace, similar in structure to Rover, designed specifically for homesteads and
-              livestock.
+              <strong className="text-brand">The Local Yield Care</strong> — structured farm animal
+              care and rural labor support, not a gig app. Designed for homesteads, livestock, and
+              rural communities.
             </li>
           </ul>
           <p className="mt-4 text-brand/90">

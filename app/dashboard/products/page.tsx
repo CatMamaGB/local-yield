@@ -4,6 +4,7 @@
 
 import { redirect } from "next/navigation";
 import { requireProducerOrAdmin } from "@/lib/auth";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { ProductsClient } from "./ProductsClient";
 
 export default async function DashboardProductsPage() {
@@ -15,7 +16,7 @@ export default async function DashboardProductsPage() {
   return (
     <div className="min-h-screen bg-brand-light">
       <div className="mx-auto max-w-4xl px-4 py-8">
-        <h1 className="font-display text-2xl font-semibold text-brand">Products</h1>
+        <PageHeader title="Products" />
         <ProductsClient />
       </div>
     </div>

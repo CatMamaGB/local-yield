@@ -8,8 +8,12 @@ import { prisma } from "@/lib/prisma";
 import { requireProducerOrAdmin } from "@/lib/auth";
 import { ok, fail, parseJsonBody } from "@/lib/api";
 import { ProfileUpdateSchema } from "@/lib/validators";
+import { logError } from "@/lib/logger";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { getRequestId } from "@/lib/request-id";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const requestId = getRequestId(request);
   try {
     const user = await requireProducerOrAdmin();
     const dbUser = await prisma.user.findUnique({
@@ -22,14 +26,14 @@ export async function GET() {
         producerProfile: true,
       },
     });
-    if (!dbUser) return Response.json({ error: "Not found" }, { status: 404 });
+    if (!dbUser) return fail("Not found", "NOT_FOUND", 404);
     const profile = dbUser.producerProfile;
     const upcomingEvents = await prisma.event.findMany({
       where: { userId: user.id, eventDate: { gte: new Date() } },
       orderBy: { eventDate: "asc" },
       take: 20,
     });
-    return Response.json({
+    return ok({
       user: {
         name: dbUser.name,
         bio: dbUser.bio,
@@ -59,12 +63,17 @@ export async function GET() {
       })),
     });
   } catch (e) {
+    logError("dashboard/profile/GET", e, { requestId, path: "/api/dashboard/profile", method: "GET" });
     const message = e instanceof Error ? e.message : "Forbidden";
-    return Response.json({ error: message }, { status: 403 });
+    return fail(message, "FORBIDDEN", 403);
   }
 }
 
 export async function PATCH(request: NextRequest) {
+  const requestId = getRequestId(request);
+  const rateLimitRes = await checkRateLimit(request);
+  if (rateLimitRes) return rateLimitRes;
+
   try {
     const user = await requireProducerOrAdmin();
     
@@ -167,10 +176,11 @@ export async function PATCH(request: NextRequest) {
       });
     }
 
-    return ok();
+    return ok(undefined);
   } catch (e) {
-    console.error("Profile update error:", e);
-    const message = e instanceof Error ? e.message : "Forbidden";
-    return fail(message, "FORBIDDEN", 403);
+    logError("dashboard/profile/PATCH", e, { requestId, path: "/api/dashboard/profile", method: "PATCH" });
+    const message = e instanceof Error ? e.message : "";
+    if (message === "Forbidden") return fail(message, "FORBIDDEN", 403);
+    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
   }
 }

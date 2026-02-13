@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { apiPatch } from "@/lib/client/api-client";
+import { ApiError, apiErrorMessage } from "@/lib/client/api-client";
 
 export interface MarkFulfilledButtonProps {
   orderId: string;
@@ -18,18 +20,10 @@ export function MarkFulfilledButton({
   async function handleClick() {
     setLoading(true);
     try {
-      const res = await fetch(`/api/orders/${orderId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "FULFILLED" }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Failed");
-      }
+      await apiPatch(`/api/orders/${orderId}`, { status: "FULFILLED" });
       onFulfilled?.();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Failed to mark fulfilled");
+      alert(e instanceof ApiError ? apiErrorMessage(e) : (e instanceof Error ? e.message : "Failed to mark fulfilled"));
     } finally {
       setLoading(false);
     }

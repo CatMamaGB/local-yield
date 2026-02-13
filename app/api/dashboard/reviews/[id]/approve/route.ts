@@ -2,25 +2,33 @@
  * POST /api/dashboard/reviews/[id]/approve — producer approves review (makes it public).
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { requireProducerOrAdmin } from "@/lib/auth";
 import { approveReviewByProducer } from "@/lib/reviews";
+import { ok, fail } from "@/lib/api";
+import { logError } from "@/lib/logger";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { getRequestId } from "@/lib/request-id";
 
 export async function POST(
-  _request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const requestId = getRequestId(request);
+  const rateLimitRes = await checkRateLimit(request);
+  if (rateLimitRes) return rateLimitRes;
+
   try {
     const user = await requireProducerOrAdmin();
     const { id } = await params;
-    if (!id) return NextResponse.json({ error: "Missing review id" }, { status: 400 });
+    if (!id) return fail("Missing review id", "VALIDATION_ERROR", 400);
     await approveReviewByProducer(id, user.id);
-    return NextResponse.json({ ok: true });
+    return ok(undefined);
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Failed";
-    return NextResponse.json(
-      { error: message },
-      { status: e instanceof Error && e.message.includes("not found") ? 404 : 403 }
-    );
+    logError("dashboard/reviews/[id]/approve/POST", e, { requestId, path: "/api/dashboard/reviews/[id]/approve", method: "POST" });
+    const message = e instanceof Error ? e.message : "";
+    if (message === "Forbidden") return fail(message, "FORBIDDEN", 403);
+    if (message.includes("not found")) return fail("Review not found", "NOT_FOUND", 404);
+    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
   }
 }

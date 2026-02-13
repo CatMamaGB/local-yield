@@ -3,7 +3,7 @@
  * Fastest: env vars (NEXT_PUBLIC_* for client). Later: DB FeatureFlag table.
  */
 
-/** Care experience (marketplace for caregivers). When false, Care is "coming soon" and /care/* sub-routes redirect to /care. */
+/** Care experience (marketplace for caregivers). Always on; kept for API compatibility. */
 export function isCareEnabled(): boolean {
-  return process.env.NEXT_PUBLIC_ENABLE_CARE === "true";
+  return true;
 }

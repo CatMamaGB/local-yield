@@ -1,27 +1,26 @@
 /**
- * Care — browse caregivers. Placeholder for later.
- * Path: /care/browse (when Care is launched).
- * When Care is disabled (feature flag), redirects to /market.
+ * Care — browse caregivers.
  */
 
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { isCareEnabled } from "@/lib/feature-flags";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { CareBrowseClient } from "./CareBrowseClient";
 
 export default function CareBrowsePage() {
-  if (!isCareEnabled()) redirect("/market");
   return (
     <div className="min-h-screen bg-brand-light">
-      <section className="mx-auto max-w-6xl px-4 py-8">
-        <Link href="/care" className="text-brand-accent hover:underline">
+      <section className="mx-auto max-w-6xl px-4 py-10">
+        <Link href="/care" className="text-brand-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent focus-visible:ring-offset-2 rounded">
           ← Back to Care
         </Link>
-        <h1 className="font-display mt-4 text-3xl font-semibold text-brand">
-          Browse caregivers
-        </h1>
-        <p className="mt-2 text-brand/80">
-          Coming soon. You’ll be able to find and book local caregivers here.
-        </p>
+        <PageHeader
+          title="Browse caregivers"
+          subtitle="Find trusted farm animal care near you. Search by ZIP code and filter by species or service type."
+          className="mt-4"
+        />
+        <div className="mt-8">
+          <CareBrowseClient />
+        </div>
       </section>
     </div>
   );

@@ -8,6 +8,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ok, fail, parseJsonBody } from "@/lib/api";
 import { SignUpRoleSchema } from "@/lib/validators";
+import { getRequestId } from "@/lib/request-id";
+import { logError } from "@/lib/logger";
 import { PlatformUse, Role, PrimaryMode } from "@prisma/client";
 import { z } from "zod";
 
@@ -94,23 +96,25 @@ export async function POST(request: NextRequest) {
     });
 
     const res = ok({ redirect: "/auth/onboarding" });
+    const isProduction = (process.env.NODE_ENV as string) === "production";
     res.cookies.set("__dev_user_id", user.id, {
       path: "/",
       maxAge: 60 * 60 * 24 * 7,
       httpOnly: true,
       sameSite: "lax",
-      secure: false,
+      secure: isProduction,
     });
     res.cookies.set("__dev_user", primaryRole, {
       path: "/",
       maxAge: 60 * 60 * 24 * 7,
       httpOnly: true,
       sameSite: "lax",
-      secure: false,
+      secure: isProduction,
     });
     return res;
   } catch (error) {
-    console.error("Dev signup error:", error);
-    return fail("Internal server error", "INTERNAL_ERROR", 500);
+    const requestId = getRequestId(request);
+    logError("auth/dev-signup/POST", error, { requestId, path: "/api/auth/dev-signup", method: "POST" });
+    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
   }
 }

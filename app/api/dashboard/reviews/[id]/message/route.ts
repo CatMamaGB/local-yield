@@ -3,26 +3,32 @@
  * Returns conversationId so producer can open the private chat. Order is linked when available.
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireProducerOrAdmin } from "@/lib/auth";
+import { ok, fail } from "@/lib/api";
+import { logError } from "@/lib/logger";
+import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limit";
+import { getRequestId } from "@/lib/request-id";
 
 export async function POST(
-  _request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const requestId = getRequestId(request);
+  const rateLimitRes = await checkRateLimit(request, RATE_LIMIT_PRESETS.MESSAGES);
+  if (rateLimitRes) return rateLimitRes;
+
   try {
     const user = await requireProducerOrAdmin();
     const { id: reviewId } = await params;
-    if (!reviewId) return NextResponse.json({ error: "Missing review id" }, { status: 400 });
+    if (!reviewId) return fail("Missing review id", "VALIDATION_ERROR", 400);
 
     const review = await prisma.review.findUnique({
       where: { id: reviewId },
       select: { revieweeId: true, reviewerId: true, orderId: true },
     });
-    if (!review || review.revieweeId !== user.id) {
-      return NextResponse.json({ error: "Review not found or you are not the producer." }, { status: 404 });
-    }
+    if (!review || review.revieweeId !== user.id) return fail("Review not found or you are not the producer.", "NOT_FOUND", 404);
 
     const producerId = user.id;
     const buyerId = review.reviewerId;
@@ -51,9 +57,11 @@ export async function POST(
       });
     }
 
-    return NextResponse.json({ conversationId: conversation.id });
+    return ok({ conversationId: conversation.id });
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Failed";
-    return NextResponse.json({ error: message }, { status: 403 });
+    logError("dashboard/reviews/[id]/message/POST", e, { requestId, path: "/api/dashboard/reviews/[id]/message", method: "POST" });
+    const message = e instanceof Error ? e.message : "";
+    if (message === "Forbidden") return fail(message, "FORBIDDEN", 403);
+    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
   }
 }

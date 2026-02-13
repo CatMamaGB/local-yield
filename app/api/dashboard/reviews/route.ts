@@ -2,15 +2,19 @@
  * GET /api/dashboard/reviews — list pending reviews for current producer (private, not yet approved).
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { requireProducerOrAdmin } from "@/lib/auth";
 import { getPendingReviewsForProducer } from "@/lib/reviews";
+import { ok, fail } from "@/lib/api";
+import { logError } from "@/lib/logger";
+import { getRequestId } from "@/lib/request-id";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const requestId = getRequestId(request);
   try {
     const user = await requireProducerOrAdmin();
     const reviews = await getPendingReviewsForProducer(user.id);
-    return NextResponse.json({
+    return ok({
       reviews: reviews.map((r) => ({
         id: r.id,
         comment: r.comment,
@@ -24,7 +28,8 @@ export async function GET() {
       })),
     });
   } catch (e) {
+    logError("dashboard/reviews/GET", e, { requestId, path: "/api/dashboard/reviews", method: "GET" });
     const message = e instanceof Error ? e.message : "Forbidden";
-    return NextResponse.json({ error: message }, { status: 403 });
+    return fail(message, "FORBIDDEN", 403);
   }
 }

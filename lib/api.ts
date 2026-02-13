@@ -12,14 +12,21 @@ export function ok(data?: any) {
 }
 
 /**
- * Error response helper
+ * Error response helper. Optionally pass extra fields (e.g. requestId for debugging).
+ * Do not leak stack traces or sensitive data in extra.
  */
-export function fail(error: string, code?: string, status: number = 400) {
+export function fail(
+  error: string,
+  code?: string,
+  status: number = 400,
+  extra?: Record<string, string | number | boolean | null>
+) {
   return NextResponse.json(
     {
       ok: false,
       error,
       ...(code && { code }),
+      ...(extra && Object.keys(extra).length > 0 ? extra : {}),
     },
     { status }
   );

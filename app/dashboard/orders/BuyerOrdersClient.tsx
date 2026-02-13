@@ -8,6 +8,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { formatDate } from "@/lib/utils";
 import { OrderStatusBadge } from "@/components/OrderStatusBadge";
+import { apiPost, apiPatch } from "@/lib/client/api-client";
+import { ApiError, apiErrorMessage } from "@/lib/client/api-client";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 
 type OrderStatus = "PENDING" | "PAID" | "FULFILLED" | "CANCELED" | "REFUNDED";
 
@@ -65,13 +68,12 @@ export function BuyerOrdersClient({
     if (!c) return;
     setLoadingOrderId(orderId);
     try {
-      const res = await fetch("/api/reviews", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, comment: c, rating, privateFlag: true }),
+      const data = await apiPost<{ review: { id: string; privateFlag?: boolean } }>("/api/reviews", {
+        orderId,
+        comment: c,
+        rating,
+        privateFlag: true,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to submit");
       setReviews((prev) => ({
         ...prev,
         [orderId]: {
@@ -89,7 +91,7 @@ export function BuyerOrdersClient({
       setComment("");
       setRating(3);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Failed");
+      alert(e instanceof ApiError ? apiErrorMessage(e) : (e instanceof Error ? e.message : "Failed"));
     } finally {
       setLoadingOrderId(null);
     }
@@ -100,13 +102,7 @@ export function BuyerOrdersClient({
     if (!c) return;
     setLoadingOrderId(orderId);
     try {
-      const res = await fetch(`/api/reviews/${reviewId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ comment: c, rating: updateRating }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to update");
+      await apiPatch(`/api/reviews/${reviewId}`, { comment: c, rating: updateRating });
       setReviews((prev) => ({
         ...prev,
         [orderId]: prev[orderId]
@@ -117,7 +113,7 @@ export function BuyerOrdersClient({
       setUpdateComment("");
       setUpdateRating(3);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Failed");
+      alert(e instanceof ApiError ? apiErrorMessage(e) : (e instanceof Error ? e.message : "Failed"));
     } finally {
       setLoadingOrderId(null);
     }

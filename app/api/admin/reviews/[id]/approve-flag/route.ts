@@ -4,26 +4,34 @@
 
 import { NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/auth";
-import { approveFlaggedReviewByAdmin } from "@/lib/reviews";
+import { approveFlaggedReviewByAdmin, logReviewAdminAction } from "@/lib/reviews";
+import { ok, fail } from "@/lib/api";
+import { logError } from "@/lib/logger";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { getRequestId } from "@/lib/request-id";
 
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const requestId = getRequestId(request);
+  const rateLimitRes = await checkRateLimit(request);
+  if (rateLimitRes) return rateLimitRes;
+
+  let admin: { id: string };
   try {
-    await requireAdmin();
+    admin = await requireAdmin();
   } catch {
-    return Response.json({ error: "Forbidden" }, { status: 403 });
+    return fail("Forbidden", "FORBIDDEN", 403);
   }
   const { id } = await params;
-  if (!id) return Response.json({ error: "Missing review id" }, { status: 400 });
+  if (!id) return fail("Missing review id", "VALIDATION_ERROR", 400);
   try {
     await approveFlaggedReviewByAdmin(id);
-    return Response.json({ ok: true });
+    await logReviewAdminAction(admin.id, "REVIEW_APPROVE_FLAG", id, {});
+    return ok(undefined);
   } catch (e) {
-    return Response.json(
-      { error: e instanceof Error ? e.message : "Failed to approve review" },
-      { status: 500 }
-    );
+    logError("admin/reviews/[id]/approve-flag/POST", e, { requestId, path: "/api/admin/reviews/[id]/approve-flag", method: "POST" });
+    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
   }
 }

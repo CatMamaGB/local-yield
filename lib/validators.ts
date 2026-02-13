@@ -84,6 +84,19 @@ export const OnboardingSchema = z.object({
 });
 
 /**
+ * Account update validation (shared: name, contact, address for all users).
+ * Used for buyer/producer/care profile "account" section.
+ */
+export const AccountUpdateSchema = z.object({
+  name: z.string().trim().max(200, "Name is too long").optional(),
+  phone: z.string().trim().min(1, "Phone is required").max(50, "Phone is too long").optional(),
+  zipCode: ZipSchema.optional(),
+  addressLine1: z.string().trim().max(200, "Address line is too long").optional(),
+  city: z.string().trim().max(100, "City is too long").optional(),
+  state: z.string().trim().max(50, "State is too long").optional(),
+});
+
+/**
  * Profile update validation (producer business page + delivery)
  */
 export const ProfileUpdateSchema = z.object({
@@ -113,4 +126,121 @@ export const ProductCatalogFormSchema = z.object({
   price: z.number().min(0, "Price must be 0 or greater"),
   quantityInStock: z.number().int().min(0, "Quantity must be 0 or greater"),
   customImageFile: z.instanceof(File).optional().nullable(),
+});
+
+/**
+ * Care enums for validation
+ */
+export const AnimalSpeciesSchema = z.enum([
+  "HORSES",
+  "CATTLE",
+  "GOATS",
+  "SHEEP",
+  "PIGS",
+  "POULTRY",
+  "ALPACAS",
+  "LLAMAS",
+  "DONKEYS",
+  "OTHER",
+]);
+
+export const CareServiceTypeSchema = z.enum([
+  "DROP_IN",
+  "OVERNIGHT",
+  "BOARDING",
+  "FARM_SITTING",
+]);
+
+export const CareTaskTypeSchema = z.enum([
+  "FEEDING",
+  "WATERING",
+  "MUCKING",
+  "TURNOUT",
+  "MEDS_ORAL",
+  "MEDS_INJECTION",
+  "WOUND_CARE",
+  "HERD_CHECK",
+  "EGG_COLLECTION",
+  "MILKING",
+  "LAMBING_FOALING_SUPPORT",
+  "EQUIPMENT_USE",
+  "OTHER",
+]);
+
+export const ExperienceBackgroundSchema = z.enum([
+  "GREW_UP_FARM",
+  "FAMILY_OPERATION",
+  "RANCH_WORK",
+  "BARN_MANAGER",
+  "VET_ASSISTANT",
+  "SHOW_CIRCUIT",
+  "SELF_TAUGHT",
+  "FORMAL_AG_EDU",
+  "FFA_4H",
+  "OTHER",
+]);
+
+export const CareBookingStatusSchema = z.enum([
+  "REQUESTED",
+  "ACCEPTED",
+  "DECLINED",
+  "CANCELED",
+  "COMPLETED",
+]);
+
+/**
+ * Create care booking request validation
+ */
+export const CreateCareBookingSchema = z.object({
+  caregiverId: z.string().min(1, "Caregiver ID required"),
+  startAt: z.string().datetime("Valid start date/time required"),
+  endAt: z.string().datetime("Valid end date/time required"),
+  locationZip: ZipSchema,
+  notes: z.string().trim().optional(),
+  species: AnimalSpeciesSchema.optional(),
+  serviceType: CareServiceTypeSchema.optional(),
+}).refine((data) => {
+  const start = new Date(data.startAt);
+  const end = new Date(data.endAt);
+  return end > start;
+}, {
+  message: "End date must be after start date",
+  path: ["endAt"],
+});
+
+/**
+ * Update care booking status validation
+ */
+export const UpdateCareBookingStatusSchema = z.object({
+  status: CareBookingStatusSchema,
+});
+
+/**
+ * Create care service listing validation
+ */
+export const CreateCareServiceListingSchema = z.object({
+  title: z.string().trim().min(1, "Title is required").max(200, "Title too long"),
+  serviceType: CareServiceTypeSchema,
+  speciesSupported: z.array(AnimalSpeciesSchema).min(1, "Select at least one species"),
+  tasksSupported: z.array(CareTaskTypeSchema).min(1, "Select at least one task"),
+  rateCents: z.number().int().min(0, "Rate must be non-negative"),
+  rateUnit: z.string().trim().min(1, "Rate unit is required").max(50, "Rate unit too long"),
+  serviceRadiusMiles: z.number().int().min(1, "Service radius must be at least 1 mile").max(100, "Service radius too large"),
+  description: z.string().trim().max(2000, "Description too long").optional(),
+  active: z.boolean().optional().default(true),
+});
+
+/**
+ * Update caregiver profile validation (trust signals)
+ */
+export const UpdateCaregiverProfileSchema = z.object({
+  bio: z.string().trim().max(2000, "Bio too long").optional().or(z.null()),
+  yearsExperience: z.number().int().min(0).max(100).optional().or(z.null()),
+  experienceBackground: z.array(ExperienceBackgroundSchema).optional(),
+  speciesComfort: z.array(AnimalSpeciesSchema).optional(),
+  tasksComfort: z.array(CareTaskTypeSchema).optional(),
+  introVideoUrl: z.string().url("Valid video URL required").optional().or(z.null()),
+  introAudioUrl: z.string().url("Valid audio URL required").optional().or(z.null()),
+  referencesText: z.string().trim().max(2000, "References text too long").optional().or(z.null()),
+  languagesSpoken: z.string().trim().max(200, "Languages text too long").optional().or(z.null()),
 });

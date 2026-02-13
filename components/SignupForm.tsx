@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { RoleSelection, type SignUpRoleId } from "./RoleSelection";
 import { ZipCodeInput } from "./ZipCodeInput";
+import { apiPost } from "@/lib/client/api-client";
 
 const PRIMARY_MODES: { value: "MARKET" | "SELL" | "CARE"; label: string }[] = [
   { value: "MARKET", label: "MARKET (browse & buy)" },
@@ -68,24 +69,18 @@ export function SignupForm() {
     }
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          email: email.trim(),
-          phone: phone.trim(),
-          zipCode: zip,
-          roles,
-          primaryMode: effectivePrimaryMode,
-          addressLine1: addressLine1.trim() || undefined,
-          city: city.trim() || undefined,
-          state: state.trim() || undefined,
-        }),
+      const data = await apiPost<{ redirect?: string }>("/api/auth/signup", {
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        zipCode: zip,
+        roles,
+        primaryMode: effectivePrimaryMode,
+        addressLine1: addressLine1.trim() || undefined,
+        city: city.trim() || undefined,
+        state: state.trim() || undefined,
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error ?? "Sign up failed");
-      if (data.redirect) {
+      if (data?.redirect) {
         router.push(data.redirect);
         router.refresh();
         return;

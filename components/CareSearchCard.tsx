@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * Rover-style central search card for Care: service categories + address + Search.
- * Used on /care when Care is enabled. When disabled, Care page shows a "Coming soon" variant.
+ * Central search card for Care: service categories + address + Search.
+ * Used on /care.
  */
 
 import { useState } from "react";
@@ -44,10 +44,10 @@ export function CareSearchCard() {
   }
 
   return (
-    <div className="w-full max-w-2xl rounded-2xl border border-brand/15 bg-white p-6 shadow-xl">
+    <div className="w-full max-w-2xl rounded-xl border border-brand/10 bg-white p-6 shadow-farmhouse sm:p-8">
       <form onSubmit={handleSearch} className="space-y-6">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-brand/70">
+          <p className="text-sm font-semibold uppercase tracking-wide text-brand/80">
             For When You&apos;re Away
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -56,10 +56,10 @@ export function CareSearchCard() {
                 key={id}
                 type="button"
                 onClick={() => setService(id)}
-                className={`flex items-center gap-2 rounded-xl border-2 px-4 py-3 text-left text-sm font-medium transition ${
+                className={`flex items-center gap-2 rounded-lg border-2 px-4 py-3 text-left text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent focus-visible:ring-offset-2 ${
                   service === id
-                    ? "border-brand bg-brand-light text-brand"
-                    : "border-brand/20 bg-white text-brand/80 hover:border-brand/40"
+                    ? "border-brand-accent bg-brand-light text-brand"
+                    : "border-brand/20 bg-white text-brand/80 hover:border-brand-accent/40"
                 }`}
               >
                 <Icon className="h-5 w-5 shrink-0" aria-hidden />
@@ -69,7 +69,7 @@ export function CareSearchCard() {
           </div>
         </div>
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-brand/70">
+          <p className="text-sm font-semibold uppercase tracking-wide text-brand/80">
             For When You&apos;re At Work
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -78,10 +78,10 @@ export function CareSearchCard() {
                 key={id}
                 type="button"
                 onClick={() => setService(id)}
-                className={`flex items-center gap-2 rounded-xl border-2 px-4 py-3 text-left text-sm font-medium transition ${
+                className={`flex items-center gap-2 rounded-lg border-2 px-4 py-3 text-left text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent focus-visible:ring-offset-2 ${
                   service === id
-                    ? "border-brand bg-brand-light text-brand"
-                    : "border-brand/20 bg-white text-brand/80 hover:border-brand/40"
+                    ? "border-brand-accent bg-brand-light text-brand"
+                    : "border-brand/20 bg-white text-brand/80 hover:border-brand-accent/40"
                 }`}
               >
                 <Icon className="h-5 w-5 shrink-0" aria-hidden />
@@ -100,12 +100,12 @@ export function CareSearchCard() {
             placeholder="Add your address"
             value={address}
             onChange={(e) => setAddress(e.target.value)}
-            className="w-full rounded-xl border-2 border-brand/20 bg-white px-4 py-3 text-brand placeholder:text-brand/50 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+            className="w-full rounded-lg border border-brand/20 bg-white px-4 py-3 text-brand placeholder:text-brand/50 focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/20"
           />
         </div>
         <button
           type="submit"
-          className="w-full rounded-xl bg-brand px-6 py-3 font-semibold text-white transition hover:bg-brand/90"
+          className="w-full rounded-lg bg-brand-accent px-6 py-3 text-sm font-semibold text-white shadow-farmhouse transition hover:bg-brand-accent/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent focus-visible:ring-offset-2"
         >
           Search
         </button>

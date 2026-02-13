@@ -6,6 +6,11 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { apiGet } from "@/lib/client/api-client";
+import { ApiError, apiErrorMessage } from "@/lib/client/api-client";
+import { InlineAlert } from "@/components/ui/InlineAlert";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
 
 interface ConversationRow {
   id: string;
@@ -21,24 +26,22 @@ export function DashboardMessagesClient() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/dashboard/conversations")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.error) throw new Error(data.error);
-        setConversations(data.conversations ?? []);
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load"))
+    apiGet<{ conversations?: ConversationRow[] }>("/api/dashboard/conversations")
+      .then((data) => setConversations(data.conversations ?? []))
+      .catch((e) => setError(e instanceof ApiError ? apiErrorMessage(e) : (e instanceof Error ? e.message : "Failed to load")))
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <p className="mt-6 text-brand/70">Loading messages…</p>;
-  if (error) return <p className="mt-6 text-red-600">{error}</p>;
+  if (loading) return <LoadingSkeleton rows={5} className="mt-6" />;
+  if (error) return <InlineAlert variant="error" className="mt-6">{error}</InlineAlert>;
 
   if (conversations.length === 0) {
     return (
-      <p className="mt-6 rounded-xl border border-brand/20 bg-white p-6 text-brand/70">
-        No conversations yet. When buyers contact you about an order, they&apos;ll appear here.
-      </p>
+      <EmptyState
+        title="No conversations yet"
+        body="When buyers contact you about an order, they will appear here."
+        className="mt-6"
+      />
     );
   }
 

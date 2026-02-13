@@ -1,6 +1,6 @@
 /**
  * Order / checkout helpers for The Local Yield.
- * Sets resolution window (48h) and pickup code for event/pickup; supports card (Stripe) and cash.
+ * Sets resolution window (48–72h, configurable) and pickup code for event/pickup; supports card (Stripe) and cash.
  */
 
 import type { Prisma } from "@prisma/client";
@@ -8,8 +8,10 @@ import { prisma } from "./prisma";
 
 export type PaymentMethod = "cash" | "card";
 
-/** Resolution window: buyer cannot publish negative public review until this many hours after pickup. */
-const RESOLUTION_WINDOW_HOURS = 48;
+// Configurable resolution window (48–72h). Default: 48 hours. Guard against NaN from invalid env.
+const rawWindow = Number.parseInt(process.env.RESOLUTION_WINDOW_HOURS ?? "48", 10);
+const safeWindow = Number.isFinite(rawWindow) ? rawWindow : 48;
+const RESOLUTION_WINDOW_HOURS = Math.min(72, Math.max(48, safeWindow));
 
 function generatePickupCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -179,14 +181,15 @@ export async function createOrder(input: CreateOrderInput): Promise<{ orderId: s
     const fulfillmentType = input.fulfillmentType ?? "PICKUP";
     const deliveryFeeCents = input.deliveryFeeCents ?? 0;
 
-    // Create order with all items
+    // Paid state: only set paid=true when Stripe webhook confirms (future). At creation we always set paid=false.
+    // Cash orders: viaCash=true, producer may later mark PAID via PATCH. Card: paid set by webhook only.
     const order = await tx.order.create({
       data: {
         buyerId: input.buyerId,
         producerId: input.producerId,
         productId: input.productId ?? items[0]?.productId ?? null, // Legacy field
         notes: input.notes ?? null,
-        paid: input.paymentMethod === "card",
+        paid: false, // Never true at creation; set by Stripe webhook (card) or producer PATCH (cash)
         viaCash: input.paymentMethod === "cash",
         status: "PENDING",
         fulfillmentType,
@@ -239,6 +242,30 @@ export async function getOrdersForProducer(producerId: string) {
       product: { select: { id: true, title: true, price: true } },
       orderItems: { include: { product: { select: { id: true, title: true, price: true } } } },
       buyer: { select: { id: true, name: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+/** Paid or fulfilled orders for producer — lightweight for analytics pages. */
+export async function getPaidOrdersForProducer(producerId: string) {
+  return prisma.order.findMany({
+    where: {
+      producerId,
+      status: { in: ["PAID", "FULFILLED"] },
+    },
+    select: {
+      id: true,
+      createdAt: true,
+      status: true,
+      totalCents: true,
+      buyer: { select: { name: true } },
+      product: { select: { title: true } },
+      orderItems: {
+        select: {
+          product: { select: { title: true } },
+        },
+      },
     },
     orderBy: { createdAt: "desc" },
   });

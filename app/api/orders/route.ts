@@ -9,8 +9,15 @@ import { getCurrentUser } from "@/lib/auth";
 import { createOrder } from "@/lib/orders";
 import { ok, fail, parseJsonBody } from "@/lib/api";
 import { CreateOrderSchema } from "@/lib/validators";
+import { logError } from "@/lib/logger";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { getRequestId } from "@/lib/request-id";
 
 export async function POST(request: NextRequest) {
+  const requestId = getRequestId(request);
+  const rateLimitRes = await checkRateLimit(request);
+  if (rateLimitRes) return rateLimitRes;
+
   try {
     // Authenticate user
     const user = await getCurrentUser();
@@ -86,9 +93,8 @@ export async function POST(request: NextRequest) {
       pickupCode: result.pickupCode,
     });
   } catch (error) {
-    console.error("Order creation error:", error);
+    logError("orders/POST", error, { requestId, path: "/api/orders", method: "POST" });
     if (error instanceof Error) {
-      // Check for known error types from createOrder
       if (error.message.includes("not found") || error.message.includes("NOT_FOUND")) {
         return fail(error.message, "NOT_FOUND", 404);
       }
@@ -99,6 +105,6 @@ export async function POST(request: NextRequest) {
         return fail(error.message, "OUT_OF_STOCK", 400);
       }
     }
-    return fail("Internal server error", "INTERNAL_ERROR", 500);
+    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
   }
 }
