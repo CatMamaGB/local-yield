@@ -28,6 +28,8 @@ The **home page** (`/`) and **About** (`/about`) do not use auth and are safe to
 - **File uploads:** Cloudinary (to be wired)
 - **Location:** ZIP code radius-based matching
 - **State Management:** React hooks + server actions
+- **Rate Limiting:** Upstash Redis for API rate limiting
+- **Logging:** Request ID tracking and structured logging utilities
 
 ## Setup
 
@@ -39,7 +41,8 @@ The **home page** (`/`) and **About** (`/about`) do not use auth and are safe to
 2. **Environment**
    - Copy `.env.example` to `.env`
    - Set `DATABASE_URL` to your PostgreSQL connection string
-   - Optionally add Stripe and auth keys when you integrate them
+   - Optionally add Stripe keys when you integrate payments
+   - For rate limiting: Set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` (optional, falls back to in-memory rate limiting)
 
 3. **Database (Prisma 7)**
    - Prisma config lives in `prisma.config.ts`; the schema is in `prisma/schema.prisma`
@@ -111,7 +114,12 @@ The application uses PostgreSQL with Prisma ORM. Key models include:
     /shop/[id]        — Shop details
   /care
     /browse           — Browse caregivers
-    /caregiver/[id]   — Caregiver profile
+    /caregiver/[id]   — Caregiver profile with booking form
+  /care-safety        — Care safety information
+  /community-guidelines — Community guidelines
+  /seller-guidelines  — Seller guidelines
+  /privacy            — Privacy policy
+  /terms              — Terms of service
   /auth
     /login            — Login page
     /onboarding       — Role-specific onboarding
@@ -124,17 +132,31 @@ The application uses PostgreSQL with Prisma ORM. Key models include:
     /orders           — Order management (buyer & producer views)
     /profile          — User profile management
     /reviews          — Review management
+    /products         — Product catalog management
+    /customers        — Customer management with notes
+    /care-bookings    — Care booking management
+    /revenue          — Revenue tracking and metrics
   /admin
+    layout.tsx        — Admin layout with navigation
+    page.tsx          — Admin dashboard
     /reviews          — Review moderation
     /flagged-reviews  — Flagged reviews queue
     /custom-categories — Custom category management
+    /users            — User management
+    /listings         — Listing management
   /api
-    /auth             — Auth endpoints (login, signup, onboarding, sign-out, primary-mode)
-    /admin            — Admin APIs (reviews, custom categories)
+    /auth             — Auth endpoints (login, signup, onboarding, sign-out, primary-mode, dev-login, dev-signup)
+    /admin            — Admin APIs (reviews, custom categories, users, listings, action logs)
+    /account          — Account management APIs
+    /care             — Care APIs (caregivers, bookings, conversations)
     /catalog          — Catalog & category APIs
-    /dashboard        — Dashboard APIs (events, reviews, summary, conversations)
+    /dashboard        — Dashboard APIs (events, reviews, summary, conversations, customers, profile)
     /orders           — Order APIs with review endpoints
+    /products         — Product management APIs
     /reviews          — Public review APIs
+    /shop             — Shop/delivery APIs
+    /item-requests    — Item request APIs
+    /listings         — Listing APIs
 /components
   AddToCartButton.tsx
   AuthForm.tsx
@@ -145,16 +167,34 @@ The application uses PostgreSQL with Prisma ORM. Key models include:
   RoleSelection.tsx     — Role selection component
   SignupForm.tsx        — Signup form with roles
   DashboardNav.tsx      — Dashboard navigation
+  AccountForm.tsx       — Account management form
+  FAQAccordion.tsx      — FAQ accordion component
+  Footer.tsx            — Site footer
+  HomeFAQ.tsx           — Homepage FAQ section
+  LocationInput.tsx     — Location/ZIP input component
+  RequestItemForm.tsx   — Item request form
+  /dashboard            — Dashboard-specific components (MetricCard, GrowthSignalCard, etc.)
+  /ui                   — Reusable UI components (Button, Badge, FormField, LoadingSkeleton, etc.)
 /lib
   api.ts              — API client wrapper
   auth.ts             — Authentication utilities
   authz.ts            — Authorization checks
+  care.ts             — Care platform utilities
   catalog-categories.ts — Category management
   dashboard-alerts.ts — Dashboard alerts
+  feature-flags.ts    — Feature flag management
+  logger.ts           — Structured logging with request IDs
+  nav-config.ts       — Navigation configuration
+  nav-routes.ts       — Route definitions and helpers
   orders.ts           — Order utilities
+  producer-metrics.ts — Producer analytics and metrics
+  rate-limit.ts       — Rate limiting utilities
+  rate-limit-redis.ts — Redis-based rate limiting
   redirects.ts        — Redirect helpers
+  request-id.ts       — Request ID generation
   reviews.ts          — Review utilities
   validators.ts       — Input validation
+  /client              — Client-side API utilities
 /docs
   auth-flows.md       — Authentication flow documentation
   code-audit.md       — Code audit reports
@@ -177,9 +217,12 @@ The application uses PostgreSQL with Prisma ORM. Key models include:
 - Events/preorders with pickup locations and RSVP
 
 ### Care Platform
-- Browse caregivers by location
-- Care provider profiles with qualifications
-- Caregiver booking and scheduling
+- Browse caregivers by location and availability
+- Care provider profiles with qualifications and experience
+- Caregiver booking system with request/accept workflow
+- Booking management dashboard for caregivers
+- Automatic conversation threads for bookings
+- Care safety guidelines and community standards
 
 ### Authentication & Roles
 - Signup with role selection (buyer, producer, caregiver)
@@ -188,18 +231,24 @@ The application uses PostgreSQL with Prisma ORM. Key models include:
 - Session-based authentication with secure sign-out
 
 ### Dashboard
-- **Analytics**: Sales, revenue, and order metrics
+- **Analytics**: Sales, revenue, and order metrics with growth signals
 - **Orders**: Buyer order history and producer order management
 - **Events**: Create and manage events with pickup details
-- **Messages**: Internal messaging system for orders
+- **Messages**: Internal messaging system for orders and bookings
 - **Reviews**: Review management and response system
 - **Profile**: User profile and producer business page setup
+- **Products**: Product catalog management with custom categories
+- **Customers**: Customer management with notes and history
+- **Care Bookings**: Care booking management for caregivers
+- **Revenue**: Revenue tracking and financial metrics
 
 ### Admin Moderation
+- Comprehensive admin dashboard with navigation
 - Review flagging system with admin guidance
 - Flagged review queue with approve/dismiss actions
 - Custom category management for producer catalogs
-- Admin action logging for transparency
+- User management and listing oversight
+- Admin action logging for transparency and audit trails
 - Review status tracking (pending, approved, rejected, flagged)
 
 ### Reviews & Trust
@@ -213,13 +262,22 @@ The application uses PostgreSQL with Prisma ORM. Key models include:
 - ✅ Custom auth system with signup, login, and onboarding
 - ✅ Role-based access control (buyer, producer, caregiver, admin)
 - ✅ Primary mode switching for multi-role users
+- ✅ Comprehensive admin UI with navigation and management tools
 - ✅ Admin moderation system for reviews and content
-- ✅ Enhanced dashboard with analytics and messaging
+- ✅ Enhanced dashboard with analytics, messaging, and revenue tracking
 - ✅ Review system with flagging and moderation
-- ✅ Custom category management
-- ✅ Care platform with provider profiles
+- ✅ Custom category management for producer catalogs
+- ✅ Care platform with provider profiles and booking system
+- ✅ Care booking workflow with conversation threads
 - ✅ Order management and tracking
 - ✅ Event management system
+- ✅ Rate limiting with Redis support
+- ✅ Structured logging with request ID tracking
+- ✅ Reusable UI component library
+- ✅ Navigation configuration system
+- ✅ Producer metrics and analytics
+- ✅ Customer management with notes
+- ✅ Legal pages (terms, privacy, community guidelines)
 
 ## Next steps
 
@@ -246,11 +304,21 @@ The application uses PostgreSQL with Prisma ORM. Key models include:
 
 Detailed documentation is available in the `/docs` folder:
 
+- **[product-vision.md](docs/product-vision.md)** — Product vision and core principles
 - **[auth-flows.md](docs/auth-flows.md)** — Authentication and authorization flows
-- **[code-audit.md](docs/code-audit.md)** — Code quality audit and recommendations
-- **[dashboard-ux-improvements.md](docs/dashboard-ux-improvements.md)** — Dashboard UX enhancements
+- **[nav-architecture.md](docs/nav-architecture.md)** — Navigation architecture and routing
+- **[routes.md](docs/routes.md)** — Route definitions and API endpoints
 - **[high-level-audit.md](docs/high-level-audit.md)** — High-level architecture review
-- **[prisma-auth-navbar-fixes.md](docs/prisma-auth-navbar-fixes.md)** — Database and auth implementation notes
+- **[admin-ui-review.md](docs/admin-ui-review.md)** — Admin UI implementation review
+- **[frontend-api-ux-upgrade-summary.md](docs/frontend-api-ux-upgrade-summary.md)** — Frontend/API UX improvements
+- **[prisma-drift-resolution.md](docs/prisma-drift-resolution.md)** — Database schema alignment notes
+- **[production-hardening-audit.md](docs/production-hardening-audit.md)** — Production readiness audit
+- **[ui-understanding.md](docs/ui-understanding.md)** — UI component system documentation
+- **[warm-farmhouse-ui-audit.md](docs/warm-farmhouse-ui-audit.md)** — UI design system audit
+- **[api-contract-mismatches.md](docs/api-contract-mismatches.md)** — API contract documentation
+- **[verification-pass-report.md](docs/verification-pass-report.md)** — Verification and testing report
+- **[qa-checklist-10min.md](docs/qa-checklist-10min.md)** — Quick QA checklist
+- **[feature-checklist-gap-analysis.md](docs/feature-checklist-gap-analysis.md)** — Feature gap analysis
 - **[mobile-web-mapping.md](docs/mobile-web-mapping.md)** — Mobile-web integration guide
 
 ## Development notes
@@ -260,3 +328,7 @@ Detailed documentation is available in the `/docs` folder:
 - **Role switching**: Users with multiple roles can switch their primary mode in the navbar
 - **Admin access**: Admin features require the ADMIN role in the database
 - **Feature flags**: Care platform and other features can be toggled via environment variables
+- **Rate limiting**: API endpoints use rate limiting (Redis-backed when configured, in-memory fallback)
+- **Logging**: Request IDs are automatically generated and logged for tracing
+- **Navigation**: Navigation structure is configured in `lib/nav-config.ts` and `lib/nav-routes.ts`
+- **UI Components**: Reusable UI components are in `components/ui/` following a consistent design system
