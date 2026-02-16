@@ -548,3 +548,27 @@ model CareBooking {
   @@index([caregiverId])
   @@index([status])
 }
+
+/// Preview/staging: who entered with passphrase (identity for audit).
+model PreviewViewer {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  createdAt DateTime @default(now())
+
+  logs PreviewAccessLog[]
+}
+
+/// Preview/staging: which path each viewer hit and when.
+model PreviewAccessLog {
+  id        String   @id @default(cuid())
+  viewerId  String   @map("viewer_id")
+  path      String
+  createdAt DateTime @default(now())
+  userAgent String?  @map("user_agent")
+  ipHash    String?   @map("ip_hash")
+
+  viewer PreviewViewer @relation(fields: [viewerId], references: [id], onDelete: Cascade)
+
+  @@index([viewerId, createdAt])
+}

@@ -19,6 +19,15 @@ The **home page** (`/`) and **About** (`/about`) do not use auth and are safe to
 
 **NEXT_PUBLIC_ENABLE_DEV_TOOLS must never be set on production.** In Vercel, set env vars per environment (Production vs Preview) so production does not inherit staging variables. Only add `NEXT_PUBLIC_ENABLE_DEV_TOOLS=true` to Preview/Staging; leave it unset for Production.
 
+### Staging / private preview gate
+
+For **staging or private beta**, you can gate the app in two ways:
+
+1. **Basic Auth** — When `APP_GATE_ENABLED=true`, the proxy (see `proxy.ts`) prompts for HTTP Basic Auth using `APP_GATE_USER` and `APP_GATE_PASS`. Use only on Preview/Staging.
+2. **Preview mode** — When `PREVIEW_MODE=true`, the public landing stays open; visitors who want to use the app enter name, email, and a shared passphrase at `/preview`. On success they receive a signed HTTP-only cookie (using `PREVIEW_COOKIE_SECRET`); the app and proxy then allow access. Admin can view who has preview access and audit logs at **Admin → Preview access** (`/admin/preview-access`).
+
+**Never enable `APP_GATE_ENABLED` or `PREVIEW_MODE` on production** unless you intend a private beta. Set these only on Vercel Preview/Staging and leave them unset in Production.
+
 ## Tech stack
 
 - **Frontend:** Next.js 16 (App Router) + Tailwind CSS + TypeScript
@@ -43,6 +52,7 @@ The **home page** (`/`) and **About** (`/about`) do not use auth and are safe to
    - Set `DATABASE_URL` to your PostgreSQL connection string
    - Optionally add Stripe keys when you integrate payments
    - For rate limiting: Set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` (optional, falls back to in-memory rate limiting)
+   - For staging/private preview: See “Staging / private preview gate” above. If using preview mode, set `PREVIEW_MODE=true`, `PREVIEW_PASSCODE`, and `PREVIEW_COOKIE_SECRET` (and run migrations for `PreviewViewer` / `PreviewAccessLog`).
 
 3. **Database (Prisma 7)**
    - Prisma config lives in `prisma.config.ts`; the schema is in `prisma/schema.prisma`
@@ -95,6 +105,8 @@ The application uses PostgreSQL with Prisma ORM. Key models include:
 - **Review**: Order-based reviews with flagging and moderation
 - **AdminActionLog**: Audit trail for admin actions
 - **CustomCategory**: Producer-specific product categories
+- **PreviewViewer**: Staging/preview: viewers who entered via passphrase (name, email)
+- **PreviewAccessLog**: Per-viewer access log (path, timestamp, userAgent, ipHash) for audit
 
 **Migrations**: 7 recent migrations added support for:
 - Custom categories and catalog management
@@ -139,13 +151,17 @@ The application uses PostgreSQL with Prisma ORM. Key models include:
   /admin
     layout.tsx        — Admin layout with navigation
     page.tsx          — Admin dashboard
+    /preview-access   — Preview access: list viewers and access stats
+    /preview-access/[viewerId] — Per-viewer access logs (last 50)
     /reviews          — Review moderation
     /flagged-reviews  — Flagged reviews queue
     /custom-categories — Custom category management
     /users            — User management
     /listings         — Listing management
+  /preview            — Preview entry (name + email + passphrase when PREVIEW_MODE=true)
   /api
     /auth             — Auth endpoints (login, signup, onboarding, sign-out, primary-mode, dev-login, dev-signup)
+    /preview          — Preview session (enter, log access for audit)
     /admin            — Admin APIs (reviews, custom categories, users, listings, action logs)
     /account          — Account management APIs
     /care             — Care APIs (caregivers, bookings, conversations)
@@ -184,6 +200,8 @@ The application uses PostgreSQL with Prisma ORM. Key models include:
   dashboard-alerts.ts — Dashboard alerts
   feature-flags.ts    — Feature flag management
   logger.ts           — Structured logging with request IDs
+  preview-session.ts  — Sign/verify preview cookie (server)
+  preview-session-edge.ts — Verify preview cookie (Edge)
   nav-config.ts       — Navigation configuration
   nav-routes.ts       — Route definitions and helpers
   orders.ts           — Order utilities
@@ -244,6 +262,7 @@ The application uses PostgreSQL with Prisma ORM. Key models include:
 
 ### Admin Moderation
 - Comprehensive admin dashboard with navigation
+- **Preview access**: List viewers who entered the private preview (name, email, first/last seen, page views); per-viewer access logs (last 50) for audit
 - Review flagging system with admin guidance
 - Flagged review queue with approve/dismiss actions
 - Custom category management for producer catalogs
@@ -259,6 +278,7 @@ The application uses PostgreSQL with Prisma ORM. Key models include:
 
 ## Recent updates
 
+- ✅ **Preview access**: Private preview mode with passphrase gate; name + email + passphrase at `/preview`; signed HTTP-only cookie and audit log; admin UI at `/admin/preview-access` with per-viewer logs
 - ✅ Custom auth system with signup, login, and onboarding
 - ✅ Role-based access control (buyer, producer, caregiver, admin)
 - ✅ Primary mode switching for multi-role users

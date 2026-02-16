@@ -21,8 +21,14 @@ export default function Home() {
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
             <Link
-              href="/market"
+              href="/preview"
               className="inline-flex items-center justify-center rounded-lg bg-white px-6 py-3 text-base font-semibold text-brand shadow-farmhouse transition hover:bg-white/95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand-accent"
+            >
+              Enter private preview
+            </Link>
+            <Link
+              href="/market"
+              className="inline-flex items-center justify-center rounded-lg border-2 border-white/90 bg-transparent px-6 py-3 text-base font-semibold text-white transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand-accent"
             >
               Browse Market
             </Link>
@@ -33,6 +39,9 @@ export default function Home() {
               Find Care
             </Link>
           </div>
+          <p className="mt-4 text-sm text-white/90" role="note">
+            Private preview access is logged (name, email, pages viewed) for security and feedback.
+          </p>
           <p className="mt-5">
             <Link
               href="/auth/signup"
