@@ -19,14 +19,9 @@ The **home page** (`/`) and **About** (`/about`) do not use auth and are safe to
 
 **NEXT_PUBLIC_ENABLE_DEV_TOOLS must never be set on production.** In Vercel, set env vars per environment (Production vs Preview) so production does not inherit staging variables. Only add `NEXT_PUBLIC_ENABLE_DEV_TOOLS=true` to Preview/Staging; leave it unset for Production.
 
-### Staging / private preview gate
+### Staging gate (Basic Auth)
 
-For **staging or private beta**, you can gate the app in two ways:
-
-1. **Basic Auth** — When `APP_GATE_ENABLED=true`, the proxy (see `proxy.ts`) prompts for HTTP Basic Auth using `APP_GATE_USER` and `APP_GATE_PASS`. Use only on Preview/Staging.
-2. **Preview mode** — When `PREVIEW_MODE=true`, the public landing stays open; visitors who want to use the app enter name, email, and a shared passphrase at `/preview`. On success they receive a signed HTTP-only cookie (using `PREVIEW_COOKIE_SECRET`); the app and proxy then allow access. Admin can view who has preview access and audit logs at **Admin → Preview access** (`/admin/preview-access`).
-
-**Never enable `APP_GATE_ENABLED` or `PREVIEW_MODE` on production** unless you intend a private beta. Set these only on Vercel Preview/Staging and leave them unset in Production.
+For **staging**, you can gate the app with HTTP Basic Auth. When `APP_GATE_ENABLED=true`, the proxy (see `proxy.ts`) prompts for Basic Auth using `APP_GATE_USER` and `APP_GATE_PASS`. Use only on Preview/Staging. **Never enable `APP_GATE_ENABLED` on production** unless you intend a staging-only gate.
 
 ## Tech stack
 
@@ -52,7 +47,7 @@ For **staging or private beta**, you can gate the app in two ways:
    - Set `DATABASE_URL` to your PostgreSQL connection string
    - Optionally add Stripe keys when you integrate payments
    - For rate limiting: Set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` (optional, falls back to in-memory rate limiting)
-   - For staging/private preview: See “Staging / private preview gate” above. If using preview mode, set `PREVIEW_MODE=true`, `PREVIEW_PASSCODE`, and `PREVIEW_COOKIE_SECRET` (and run migrations for `PreviewViewer` / `PreviewAccessLog`).
+   - For staging: See “Staging gate (Basic Auth)” above. Set `APP_GATE_ENABLED=true`, `APP_GATE_USER`, and `APP_GATE_PASS` if needed.
 
 3. **Database (Prisma 7)**
    - Prisma config lives in `prisma.config.ts`; the schema is in `prisma/schema.prisma`
@@ -85,7 +80,7 @@ For **staging or private beta**, you can gate the app in two ways:
 
 - **Web API for mobile:** Mobile uses the same domain (e.g. `https://thelocalyield.com`). Main API: `GET /api/listings?zip=...` for Market browse; future: `/api/orders`, `/api/messages`, `/api/products`, `/api/events`.
 - **Shared types:** `types/index.ts`, `types/listings.ts`, `types/care.ts`. Later move to `packages/shared/src/types/*` so web + mobile import the same types.
-- **Deep link parity:** Mobile tabs map to web routes (Market → `/market`, `/market/shop/[id]`; Orders → `/dashboard/orders`; Messages → `/messages`; Profile → `/dashboard` or `/profile`; Care → `/care/*` when feature-flagged). URL is the source of truth.
+- **Deep link parity:** Mobile tabs map to web routes (Market → `/market`, `/market/shop/[id]`; Orders → `/dashboard/orders`; Messages → `/messages`; Profile → `/dashboard` or `/profile`; Care → `/care/*`). Care is always available alongside Market. URL is the source of truth.
 - **Expo API pattern:** In Expo, `apps/mobile/src/lib/api.ts` with base URL `https://thelocalyield.com`; every request is e.g. `GET https://thelocalyield.com/api/listings?zip=...`. No separate server.
 
 Full details: [docs/mobile-web-mapping.md](docs/mobile-web-mapping.md).
@@ -105,8 +100,6 @@ The application uses PostgreSQL with Prisma ORM. Key models include:
 - **Review**: Order-based reviews with flagging and moderation
 - **AdminActionLog**: Audit trail for admin actions
 - **CustomCategory**: Producer-specific product categories
-- **PreviewViewer**: Staging/preview: viewers who entered via passphrase (name, email)
-- **PreviewAccessLog**: Per-viewer access log (path, timestamp, userAgent, ipHash) for audit
 
 **Migrations**: 7 recent migrations added support for:
 - Custom categories and catalog management
@@ -127,6 +120,7 @@ The application uses PostgreSQL with Prisma ORM. Key models include:
   /care
     /browse           — Browse caregivers
     /caregiver/[id]   — Caregiver profile with booking form
+    /post-job         — Post help-exchange job
   /care-safety        — Care safety information
   /community-guidelines — Community guidelines
   /seller-guidelines  — Seller guidelines
@@ -142,26 +136,33 @@ The application uses PostgreSQL with Prisma ORM. Key models include:
     /events           — Events management
     /messages         — Messaging system
     /orders           — Order management (buyer & producer views)
+    /orders/[id]      — Order detail and conversation
     /profile          — User profile management
     /reviews          — Review management
     /products         — Product catalog management
     /customers        — Customer management with notes
     /care-bookings    — Care booking management
+    /care-bookings/[id] — Care booking detail and messages
     /revenue          — Revenue tracking and metrics
+    /notifications    — User notifications
+    /job-postings     — Help exchange job postings (caregiver)
+    /my-bids          — My bids (help exchange)
+    /cases            — Resolution center / cases
   /admin
     layout.tsx        — Admin layout with navigation
     page.tsx          — Admin dashboard
-    /preview-access   — Preview access: list viewers and access stats
-    /preview-access/[viewerId] — Per-viewer access logs (last 50)
+    /analytics        — Admin analytics
+    /bookings         — Care bookings oversight
+    /forbidden        — 403 for non-admins
+    /help-exchange    — Help exchange postings
+    /reports          — Reports management
     /reviews          — Review moderation
     /flagged-reviews  — Flagged reviews queue
     /custom-categories — Custom category management
     /users            — User management
     /listings         — Listing management
-  /preview            — Preview entry (name + email + passphrase when PREVIEW_MODE=true)
   /api
     /auth             — Auth endpoints (login, signup, onboarding, sign-out, primary-mode, dev-login, dev-signup)
-    /preview          — Preview session (enter, log access for audit)
     /admin            — Admin APIs (reviews, custom categories, users, listings, action logs)
     /account          — Account management APIs
     /care             — Care APIs (caregivers, bookings, conversations)
@@ -198,10 +199,7 @@ The application uses PostgreSQL with Prisma ORM. Key models include:
   care.ts             — Care platform utilities
   catalog-categories.ts — Category management
   dashboard-alerts.ts — Dashboard alerts
-  feature-flags.ts    — Feature flag management
   logger.ts           — Structured logging with request IDs
-  preview-session.ts  — Sign/verify preview cookie (server)
-  preview-session-edge.ts — Verify preview cookie (Edge)
   nav-config.ts       — Navigation configuration
   nav-routes.ts       — Route definitions and helpers
   orders.ts           — Order utilities
@@ -262,7 +260,6 @@ The application uses PostgreSQL with Prisma ORM. Key models include:
 
 ### Admin Moderation
 - Comprehensive admin dashboard with navigation
-- **Preview access**: List viewers who entered the private preview (name, email, first/last seen, page views); per-viewer access logs (last 50) for audit
 - Review flagging system with admin guidance
 - Flagged review queue with approve/dismiss actions
 - Custom category management for producer catalogs
@@ -278,18 +275,18 @@ The application uses PostgreSQL with Prisma ORM. Key models include:
 
 ## Recent updates
 
-- ✅ **Preview access**: Private preview mode with passphrase gate; name + email + passphrase at `/preview`; signed HTTP-only cookie and audit log; admin UI at `/admin/preview-access` with per-viewer logs
 - ✅ Custom auth system with signup, login, and onboarding
 - ✅ Role-based access control (buyer, producer, caregiver, admin)
 - ✅ Primary mode switching for multi-role users
-- ✅ Comprehensive admin UI with navigation and management tools
+- ✅ Comprehensive admin UI: users, listings, reviews, flagged-reviews, custom-categories, bookings, help-exchange, reports, analytics
 - ✅ Admin moderation system for reviews and content
-- ✅ Enhanced dashboard with analytics, messaging, and revenue tracking
+- ✅ Enhanced dashboard: analytics, messaging, revenue, orders (with detail/conversation), care-bookings (with detail), notifications, job-postings, my-bids, cases
 - ✅ Review system with flagging and moderation
 - ✅ Custom category management for producer catalogs
 - ✅ Care platform with provider profiles and booking system
 - ✅ Care booking workflow with conversation threads
-- ✅ Order management and tracking
+- ✅ Help exchange: post jobs, browse, bids; admin oversight
+- ✅ Order management, order detail pages, and order conversations
 - ✅ Event management system
 - ✅ Rate limiting with Redis support
 - ✅ Structured logging with request ID tracking
@@ -316,6 +313,10 @@ The application uses PostgreSQL with Prisma ORM. Key models include:
 - `npm run dev` — start dev server
 - `npm run build` — production build
 - `npm run start` — start production server
+- `npm run test:caregivers` — test care caregivers API
+- `npm run test:help-exchange` — test help-exchange API
+- `npm run test:booking-idempotency` — test booking idempotency
+- `npm run audit:api-contracts` — audit API contracts
 - `npx prisma generate` — generate Prisma client
 - `npx prisma migrate dev` — create/apply migrations
 - `npx prisma db seed` — seed development data
@@ -324,6 +325,7 @@ The application uses PostgreSQL with Prisma ORM. Key models include:
 
 Detailed documentation is available in the `/docs` folder:
 
+- **[PROJECT-SUMMARY.md](docs/PROJECT-SUMMARY.md)** — Full project summary: routes, APIs, file structure, health
 - **[product-vision.md](docs/product-vision.md)** — Product vision and core principles
 - **[auth-flows.md](docs/auth-flows.md)** — Authentication and authorization flows
 - **[nav-architecture.md](docs/nav-architecture.md)** — Navigation architecture and routing
@@ -347,7 +349,6 @@ Detailed documentation is available in the `/docs` folder:
 - **Session management**: Sessions are stored in the database with secure HTTP-only cookies
 - **Role switching**: Users with multiple roles can switch their primary mode in the navbar
 - **Admin access**: Admin features require the ADMIN role in the database
-- **Feature flags**: Care platform and other features can be toggled via environment variables
 - **Rate limiting**: API endpoints use rate limiting (Redis-backed when configured, in-memory fallback)
 - **Logging**: Request IDs are automatically generated and logged for tracing
 - **Navigation**: Navigation structure is configured in `lib/nav-config.ts` and `lib/nav-routes.ts`
