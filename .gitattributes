@@ -1,0 +1,23 @@
+# Normalize line endings to LF in the repo (cross-platform consistency).
+# Prevents "LF will be replaced by CRLF" warnings on Windows.
+* text=auto eol=lf
+
+# Explicitly treat these as text
+*.ts text
+*.tsx text
+*.js text
+*.jsx text
+*.json text
+*.md text
+*.css text
+*.html text
+*.prisma text
+
+# Binary files: do not modify line endings
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
