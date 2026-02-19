@@ -30,6 +30,6 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     logError("dashboard/reviews/GET", e, { requestId, path: "/api/dashboard/reviews", method: "GET" });
     const message = e instanceof Error ? e.message : "Forbidden";
-    return fail(message, "FORBIDDEN", 403);
+    return fail(message, { code: "FORBIDDEN", status: 403 });
   }
 }

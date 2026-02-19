@@ -17,24 +17,24 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const requestId = getRequestId(request);
-  const rateLimitRes = await checkRateLimit(request, RATE_LIMIT_PRESETS.MESSAGES);
+  const rateLimitRes = await checkRateLimit(request, RATE_LIMIT_PRESETS.MESSAGES, requestId);
   if (rateLimitRes) return rateLimitRes;
 
   try {
     const user = await getCurrentUser();
-    if (!user) return fail("Unauthorized", "UNAUTHORIZED", 401);
+    if (!user) return fail("Unauthorized", { code: "UNAUTHORIZED", status: 401 });
 
     const { id } = await params;
-    if (!id) return fail("Booking ID required", "VALIDATION_ERROR", 400);
+    if (!id) return fail("Booking ID required", { code: "VALIDATION_ERROR", status: 400 });
 
     const booking = await prisma.careBooking.findUnique({
       where: { id },
       select: { careSeekerId: true, caregiverId: true },
     });
 
-    if (!booking) return fail("Booking not found", "NOT_FOUND", 404);
+    if (!booking) return fail("Booking not found", { code: "NOT_FOUND", status: 404 });
     if (booking.careSeekerId !== user.id && booking.caregiverId !== user.id) {
-      return fail("Forbidden", "FORBIDDEN", 403);
+      return fail("Forbidden", { code: "FORBIDDEN", status: 403 });
     }
 
     const conversation = await getOrCreateBookingConversation({
@@ -46,6 +46,6 @@ export async function POST(
     return ok({ conversationId: conversation.id });
   } catch (error) {
     logError("care/bookings/[id]/conversation/POST", error, { requestId, path: "/api/care/bookings/[id]/conversation", method: "POST" });
-    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
+    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
   }
 }

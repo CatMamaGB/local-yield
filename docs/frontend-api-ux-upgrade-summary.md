@@ -101,7 +101,7 @@
   - Dev login, signup, onboarding: confirm redirects and that errors show via InlineAlert where used.
   - Sign out: confirm redirect after apiPost sign-out.
 
-- [ ] **Care (if enabled)**
+- [ ] **Care**
   - Care browse: enter ZIP, confirm loading then results or empty state; errors show InlineAlert.
   - Request booking: confirm success redirect to messages; on error, InlineAlert shows.
   - Dashboard care bookings: confirm list or empty state; status update and "Message" use api-client.

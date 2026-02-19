@@ -45,7 +45,25 @@ export async function createReview(input: CreateReviewInput) {
   const isPublic = input.privateFlag === false;
   const isNegative = input.rating != null && input.rating <= NEGATIVE_RATING_THRESHOLD;
   const orderId = input.orderId ?? undefined;
+  const careBookingId = input.careBookingId ?? undefined;
   const reviewType = input.type ?? "MARKET";
+  
+  // Validate care booking is completed
+  if (careBookingId && reviewType === "CARE") {
+    const booking = await prisma.careBooking.findUnique({
+      where: { id: careBookingId },
+      select: { status: true, careSeekerId: true },
+    });
+    if (!booking) {
+      throw new Error("Booking not found");
+    }
+    if (booking.status !== "COMPLETED") {
+      throw new Error("You can only review completed bookings");
+    }
+    if (booking.careSeekerId !== input.reviewerId) {
+      throw new Error("Only the care seeker can review this booking");
+    }
+  }
   
   if (isPublic && isNegative && orderId) {
     const allowed = await canPublishNegativePublicReview(orderId);
@@ -66,7 +84,7 @@ export async function createReview(input: CreateReviewInput) {
       producerId,
       type: reviewType,
       orderId: orderId ?? null,
-      careBookingId: input.careBookingId ?? null,
+      careBookingId: careBookingId ?? null,
       comment: input.comment,
       privateFlag: input.privateFlag ?? true,
       rating: input.rating ?? undefined,
@@ -154,6 +172,83 @@ export async function getReviewsForReviewee(
     },
     orderBy: { createdAt: "desc" },
   });
+}
+
+/** Public reviews only (for storefront/caregiver profile): not private, not hidden. */
+export async function getPublicReviewsForReviewee(
+  revieweeId: string,
+  opts?: { type?: "MARKET" | "CARE"; limit?: number }
+) {
+  return prisma.review.findMany({
+    where: {
+      revieweeId,
+      privateFlag: false,
+      hiddenByAdmin: false,
+      ...(opts?.type != null ? { type: opts.type } : {}),
+    },
+    include: {
+      reviewer: { select: { id: true, name: true } },
+    },
+    orderBy: { createdAt: "desc" },
+    take: opts?.limit ?? 50,
+  });
+}
+
+/** Aggregate rating for storefront: average (1–5) and count of public reviews with a rating. */
+export async function getAggregateRatingForReviewee(
+  revieweeId: string,
+  opts?: { type?: "MARKET" | "CARE" }
+) {
+  const reviews = await prisma.review.findMany({
+    where: {
+      revieweeId,
+      privateFlag: false,
+      hiddenByAdmin: false,
+      rating: { not: null },
+      ...(opts?.type != null ? { type: opts.type } : {}),
+    },
+    select: { rating: true },
+  });
+  const withRating = reviews.filter((r) => r.rating != null) as { rating: number }[];
+  if (withRating.length === 0) return { averageRating: null as number | null, count: 0 };
+  const sum = withRating.reduce((s, r) => s + r.rating, 0);
+  return {
+    averageRating: Math.round((sum / withRating.length) * 10) / 10, // one decimal
+    count: withRating.length,
+  };
+}
+
+/** Batch aggregate ratings for discovery sort. Returns map of revieweeId -> { averageRating, count }. */
+export async function getAggregateRatingsForReviewees(
+  revieweeIds: string[],
+  opts?: { type?: "MARKET" | "CARE" }
+) {
+  if (revieweeIds.length === 0) return new Map<string, { averageRating: number; count: number }>();
+  const reviews = await prisma.review.findMany({
+    where: {
+      revieweeId: { in: revieweeIds },
+      privateFlag: false,
+      hiddenByAdmin: false,
+      rating: { not: null },
+      ...(opts?.type != null ? { type: opts.type } : {}),
+    },
+    select: { revieweeId: true, rating: true },
+  });
+  const map = new Map<string, { sum: number; count: number }>();
+  for (const r of reviews) {
+    const cur = map.get(r.revieweeId) ?? { sum: 0, count: 0 };
+    cur.sum += r.rating!;
+    cur.count += 1;
+    map.set(r.revieweeId, cur);
+  }
+  const result = new Map<string, { averageRating: number; count: number }>();
+  for (const [id, { sum, count }] of map) {
+    result.set(id, {
+      averageRating: Math.round((sum / count) * 10) / 10,
+      count,
+    });
+  }
+  return result;
 }
 
 export async function resolveReview(reviewId: string) {

@@ -8,23 +8,40 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 import { getPendingCustomCategoriesForAdmin } from "@/lib/catalog-categories";
-import { ok, fail } from "@/lib/api";
+import { ok, fail, withRequestId } from "@/lib/api";
 import { logError } from "@/lib/logger";
-import { getRequestId } from "@/lib/request-id";
+import { AdminCustomCategoriesQuerySchema } from "@/lib/validators";
 
 export async function GET(request: NextRequest) {
-  const requestId = getRequestId(request);
+  const requestId = withRequestId(request);
   try {
     await requireAdmin();
   } catch {
-    return fail("Forbidden", "FORBIDDEN", 403);
+    return fail("Forbidden", { code: "FORBIDDEN", status: 403, requestId });
   }
   try {
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get("status") === "APPROVED" ? "APPROVED" : "PENDING";
-    const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10) || 1);
-    const limit = Math.min(50, Math.max(5, parseInt(searchParams.get("limit") ?? "15", 10) || 15));
-    const search = searchParams.get("search")?.trim() || undefined;
+    const queryParams = {
+      status: searchParams.get("status") || undefined,
+      page: searchParams.get("page") || undefined,
+      limit: searchParams.get("limit") || undefined,
+      search: searchParams.get("search") || undefined,
+    };
+
+    const validation = AdminCustomCategoriesQuerySchema.safeParse(queryParams);
+    if (!validation.success) {
+      const first = validation.error.issues[0];
+      return fail(first?.message ?? "Invalid query parameters", {
+        code: "VALIDATION_ERROR",
+        status: 400,
+        requestId,
+      });
+    }
+
+    const status = validation.data.status === "APPROVED" ? "APPROVED" : "PENDING";
+    const page = validation.data.page ?? 1;
+    const limit = validation.data.limit ?? 15;
+    const search = validation.data.search;
 
     if (status === "PENDING") {
       const result = await getPendingCustomCategoriesForAdmin({ page, limit, search });
@@ -68,6 +85,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (e) {
     logError("admin/custom-categories/GET", e, { requestId, path: "/api/admin/custom-categories", method: "GET" });
-    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
+    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
   }
 }

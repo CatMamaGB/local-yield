@@ -18,13 +18,13 @@ export async function GET(
   try {
     const user = await requireAuth();
     const { id: orderId } = await params;
-    if (!orderId) return fail("Missing order id", "VALIDATION_ERROR", 400);
+    if (!orderId) return fail("Missing order id", { code: "VALIDATION_ERROR", status: 400 });
 
     const order = await prisma.order.findFirst({
       where: { id: orderId, buyerId: user.id },
       select: { id: true },
     });
-    if (!order) return fail("Order not found", "NOT_FOUND", 404);
+    if (!order) return fail("Order not found", { code: "NOT_FOUND", status: 404 });
 
     const review = await getReviewByOrderForBuyer(user.id, orderId);
     if (!review) return ok({ review: null });
@@ -41,6 +41,6 @@ export async function GET(
     });
   } catch (e) {
     logError("orders/[id]/review/GET", e, { requestId, path: "/api/orders/[id]/review", method: "GET" });
-    return fail("Forbidden", "FORBIDDEN", 403);
+    return fail("Forbidden", { code: "FORBIDDEN", status: 403 });
   }
 }

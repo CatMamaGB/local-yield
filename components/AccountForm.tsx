@@ -19,6 +19,7 @@ export interface AccountData {
   addressLine1: string;
   city: string;
   state: string;
+  allowProducerExport?: boolean;
 }
 
 export function AccountForm() {
@@ -34,6 +35,7 @@ export function AccountForm() {
     addressLine1: "",
     city: "",
     state: "",
+    allowProducerExport: true,
   });
 
   useEffect(() => {
@@ -50,6 +52,7 @@ export function AccountForm() {
             addressLine1: data.addressLine1 ?? "",
             city: data.city ?? "",
             state: data.state ?? "",
+            allowProducerExport: (data as { allowProducerExport?: boolean }).allowProducerExport ?? true,
           });
         }
       } catch (e) {
@@ -76,6 +79,7 @@ export function AccountForm() {
         addressLine1: form.addressLine1.trim() || undefined,
         city: form.city.trim() || undefined,
         state: form.state.trim() || undefined,
+        allowProducerExport: form.allowProducerExport,
       });
       setSuccess(true);
     } catch (e) {
@@ -169,6 +173,18 @@ export function AccountForm() {
         <p className="mt-1 text-xs text-brand/70">
           This address is used as your default for delivery at checkout. You can change it per order if needed.
         </p>
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          id="account-allow-export"
+          type="checkbox"
+          checked={form.allowProducerExport ?? true}
+          onChange={(e) => setForm((f) => ({ ...f, allowProducerExport: e.target.checked }))}
+          className="h-4 w-4 rounded border-brand/30 text-brand-accent focus:ring-brand-accent"
+        />
+        <label htmlFor="account-allow-export" className="text-sm text-brand">
+          Allow producers I&apos;ve ordered from to include my contact in their export (e.g. CSV)
+        </label>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div>

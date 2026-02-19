@@ -11,6 +11,7 @@ import { ok, fail, parseJsonBody } from "@/lib/api";
 import { logError } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getRequestId } from "@/lib/request-id";
+import { ProductCategorySchema } from "@/lib/validators";
 
 async function getProductAndCheckOwnership(id: string, requireAuth = true) {
   const product = await prisma.product.findUnique({ where: { id } });
@@ -35,11 +36,11 @@ export async function GET(
       where: { id },
       include: { user: { select: { id: true, name: true, zipCode: true } } },
     });
-    if (!product) return fail("Not found", "NOT_FOUND", 404);
+    if (!product) return fail("Not found", { code: "NOT_FOUND", status: 404 });
     return ok({ product });
   } catch (error) {
     logError("products/[id]/GET", error, { requestId, path: "/api/products/[id]", method: "GET" });
-    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
+    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
   }
 }
 
@@ -48,16 +49,16 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const requestId = getRequestId(request);
-  const rateLimitRes = await checkRateLimit(request);
+  const rateLimitRes = await checkRateLimit(request, undefined, requestId);
   if (rateLimitRes) return rateLimitRes;
 
   try {
     const { id } = await params;
     const { product, error } = await getProductAndCheckOwnership(id);
-    if (error) return fail(error, error === "Not found" ? "NOT_FOUND" : "FORBIDDEN", error === "Not found" ? 404 : 403);
+    if (error) return fail(error, { code: error === "Not found" ? "NOT_FOUND" : "FORBIDDEN", status: error === "Not found" ? 404 : 403 });
 
     const { data: body, error: parseError } = await parseJsonBody(request);
-    if (parseError) return fail(parseError, "INVALID_JSON", 400);
+    if (parseError) return fail(parseError, { code: "INVALID_JSON", status: 400 });
 
     const updates: Record<string, unknown> = {};
     if (body?.title !== undefined) updates.title = String(body.title).trim();
@@ -66,7 +67,14 @@ export async function PATCH(
       const p = Number(body.price);
       if (!Number.isNaN(p) && p >= 0) updates.price = p;
     }
-    if (body?.category !== undefined) updates.category = String(body.category).trim() || "Other";
+    if (body?.category !== undefined) {
+      const categoryRaw = String(body.category).trim();
+      const categoryResult = ProductCategorySchema.safeParse(categoryRaw);
+      if (!categoryResult.success) {
+        return fail("Category must be one of the allowed category IDs", { code: "VALIDATION_ERROR", status: 400, requestId });
+      }
+      updates.category = categoryResult.data;
+    }
     if (body?.imageUrl !== undefined) updates.imageUrl = body.imageUrl ? String(body.imageUrl).trim() : null;
     if (body?.delivery !== undefined) updates.delivery = Boolean(body.delivery);
     if (body?.pickup !== undefined) updates.pickup = Boolean(body.pickup);
@@ -81,7 +89,7 @@ export async function PATCH(
     return ok({ product: updated });
   } catch (error) {
     logError("products/[id]/PATCH", error, { requestId, path: "/api/products/[id]", method: "PATCH" });
-    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
+    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
   }
 }
 
@@ -90,17 +98,17 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const requestId = getRequestId(request);
-  const rateLimitRes = await checkRateLimit(request);
+  const rateLimitRes = await checkRateLimit(request, undefined, requestId);
   if (rateLimitRes) return rateLimitRes;
 
   try {
     const { id } = await params;
     const { error } = await getProductAndCheckOwnership(id);
-    if (error) return fail(error, error === "Not found" ? "NOT_FOUND" : "FORBIDDEN", error === "Not found" ? 404 : 403);
+    if (error) return fail(error, { code: error === "Not found" ? "NOT_FOUND" : "FORBIDDEN", status: error === "Not found" ? 404 : 403 });
     await prisma.product.delete({ where: { id } });
     return ok(undefined);
   } catch (error) {
     logError("products/[id]/DELETE", error, { requestId, path: "/api/products/[id]", method: "DELETE" });
-    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
+    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
   }
 }

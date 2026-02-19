@@ -2,7 +2,7 @@
 
 /**
  * Full signup form: identity + contact + location + roles + primaryMode.
- * POSTs to /api/auth/signup; redirects to /auth/onboarding on success.
+ * POSTs to /api/auth/signup; redirects to /auth/onboarding (with next= when provided) on success.
  */
 
 import { useState, useMemo } from "react";
@@ -11,6 +11,12 @@ import Link from "next/link";
 import { RoleSelection, type SignUpRoleId } from "./RoleSelection";
 import { ZipCodeInput } from "./ZipCodeInput";
 import { apiPost } from "@/lib/client/api-client";
+import { logTelemetry } from "@/lib/telemetry/telemetry";
+
+export interface SignupFormProps {
+  /** Safe internal path for post-signup redirect (e.g. from next=). */
+  requestedUrl?: string | null;
+}
 
 const PRIMARY_MODES: { value: "MARKET" | "SELL" | "CARE"; label: string }[] = [
   { value: "MARKET", label: "MARKET (browse & buy)" },
@@ -18,13 +24,13 @@ const PRIMARY_MODES: { value: "MARKET" | "SELL" | "CARE"; label: string }[] = [
   { value: "CARE", label: "CARE (caregiving & hiring)" },
 ];
 
-export function SignupForm() {
+export function SignupForm({ requestedUrl }: SignupFormProps = {}) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [zipCode, setZipCode] = useState("");
-  const [roles, setRoles] = useState<SignUpRoleId[]>(["BUYER"]);
+  const [roles, setRoles] = useState<SignUpRoleId[]>([]);
   const [primaryMode, setPrimaryMode] = useState<"MARKET" | "SELL" | "CARE">("MARKET");
   const [addressLine1, setAddressLine1] = useState("");
   const [city, setCity] = useState("");
@@ -47,14 +53,7 @@ export function SignupForm() {
     e.preventDefault();
     setError(null);
     const zip = zipCode.trim().slice(0, 5);
-    if (!/^\d{5}$/.test(zip)) {
-      setError("Enter a valid 5-digit ZIP code.");
-      return;
-    }
-    if (roles.length === 0) {
-      setError("Select at least one role.");
-      return;
-    }
+    const hasValidZip = /^\d{5}$/.test(zip);
     if (!name.trim()) {
       setError("Name is required.");
       return;
@@ -73,19 +72,26 @@ export function SignupForm() {
         name: name.trim(),
         email: email.trim(),
         phone: phone.trim(),
-        zipCode: zip,
-        roles,
+        zipCode: hasValidZip ? zip : undefined,
+        roles: roles.length > 0 ? roles : [],
         primaryMode: effectivePrimaryMode,
         addressLine1: addressLine1.trim() || undefined,
         city: city.trim() || undefined,
         state: state.trim() || undefined,
       });
-      if (data?.redirect) {
-        router.push(data.redirect);
-        router.refresh();
-        return;
-      }
-      router.push("/auth/onboarding");
+      logTelemetry({
+        event: "signup_completed",
+        primaryMode: effectivePrimaryMode,
+        hasProducer: roles.includes("PRODUCER"),
+        hasCaregiver: roles.includes("CAREGIVER"),
+        hasCareSeeker: roles.includes("CARE_SEEKER"),
+      });
+      const base = data?.redirect ?? "/auth/onboarding";
+      const appendNext = requestedUrl && (base === "/auth/onboarding" || base.startsWith("/auth/onboarding?"));
+      const redirectTo = appendNext
+        ? `/auth/onboarding?from=signup&next=${encodeURIComponent(requestedUrl)}`
+        : base === "/auth/onboarding" ? "/auth/onboarding?from=signup" : base;
+      router.push(redirectTo);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -95,10 +101,10 @@ export function SignupForm() {
   }
 
   return (
-    <div className="w-full max-w-lg rounded-xl border border-brand/20 bg-white p-8 shadow-sm">
+    <div className="w-full max-w-lg rounded-xl border border-brand/20 bg-white p-8 shadow-farmhouse">
       <h1 className="font-display text-2xl font-semibold text-brand">Create account</h1>
       <p className="mt-2 text-sm text-brand/80">
-        Create your customer profile. You can select multiple roles.
+        One account for browsing, selling, and care. You can add roles later in Settings.
       </p>
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
         <div>
@@ -134,7 +140,7 @@ export function SignupForm() {
             required
           />
         </div>
-        <ZipCodeInput value={zipCode} onChange={setZipCode} required />
+        <ZipCodeInput value={zipCode} onChange={setZipCode} placeholder="ZIP (optional)" />
 
         <RoleSelection value={roles} onChange={setRoles} />
         <div>
@@ -161,7 +167,7 @@ export function SignupForm() {
               );
             })}
           </div>
-          <p className="mt-1 text-xs text-brand/70">SELL requires Producer role. CARE requires Caregiver or Care Seeker.</p>
+          <p className="mt-1 text-xs text-brand/70">You can add these later in Settings.</p>
         </div>
 
         <details className="text-sm">
@@ -198,17 +204,17 @@ export function SignupForm() {
         )}
         <button
           type="submit"
-          disabled={loading || roles.length === 0}
-          className="w-full rounded bg-brand py-2.5 font-medium text-white hover:bg-brand/90 disabled:opacity-50"
+          disabled={loading}
+          className="w-full rounded-lg bg-brand-accent py-2.5 font-medium text-white shadow-farmhouse transition hover:bg-brand-accent/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent focus-visible:ring-offset-2 disabled:opacity-50"
         >
-          {loading ? "Creating account…" : "Continue"}
+          {loading ? "Creating account…" : "Create account"}
         </button>
       </form>
-      <div className="mt-6 flex flex-col gap-2 text-center">
-        <Link href="/auth/login" className="text-sm text-brand-accent hover:underline">
+      <div className="mt-6 flex flex-col gap-3 text-center">
+        <Link href="/auth/login" className="text-sm font-medium text-brand-accent hover:underline">
           Already have an account? Sign in
         </Link>
-        <Link href="/market/browse" className="text-sm text-brand/70 hover:underline">
+        <Link href="/market" className="text-sm text-brand/70 hover:underline">
           Browse without signing in
         </Link>
       </div>

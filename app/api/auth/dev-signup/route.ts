@@ -47,16 +47,16 @@ function derivePlatformUse(roles: string[], primaryMode: PrimaryMode): PlatformU
 
 export async function POST(request: NextRequest) {
   if (process.env.NODE_ENV !== "development") {
-    return fail("Not available", "NOT_AVAILABLE", 404);
+    return fail("Not available", { code: "NOT_AVAILABLE", status: 404 });
   }
 
   try {
     const { data: body, error: parseError } = await parseJsonBody(request);
-    if (parseError) return fail(parseError, "INVALID_JSON", 400);
+    if (parseError) return fail(parseError, { code: "INVALID_JSON", status: 400 });
 
     const parsed = BodySchema.safeParse(body);
     if (!parsed.success) {
-      return fail(parsed.error.flatten().formErrors?.[0] ?? "Invalid roles", "INVALID_ROLES", 400);
+      return fail(parsed.error.flatten().formErrors?.[0] ?? "Invalid roles", { code: "INVALID_ROLES", status: 400 });
     }
     const normalizedRoles = [...new Set(parsed.data.roles)];
 
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
         email: `dev-${Date.now()}@test.localyield.example`,
         name: "Dev User",
         phone: "000-000-0000",
-        zipCode: "00000",
+        zipCode: null,
         role: primaryRole,
         primaryMode,
         platformUse,
@@ -115,6 +115,6 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const requestId = getRequestId(request);
     logError("auth/dev-signup/POST", error, { requestId, path: "/api/auth/dev-signup", method: "POST" });
-    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
+    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
   }
 }

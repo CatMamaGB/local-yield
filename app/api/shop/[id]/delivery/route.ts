@@ -26,6 +26,6 @@ export async function GET(
     });
   } catch (e) {
     logError("shop/[id]/delivery/GET", e, { requestId, path: "/api/shop/[id]/delivery", method: "GET" });
-    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
+    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
   }
 }

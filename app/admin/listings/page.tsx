@@ -4,6 +4,7 @@
 
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
+import { ListingsClient } from "./ListingsClient";
 
 export default async function AdminListingsPage() {
   try {
@@ -14,7 +15,10 @@ export default async function AdminListingsPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
       <h1 className="font-display text-2xl font-semibold text-brand leading-tight">Admin: Listings</h1>
-      <p className="mt-2 text-brand/80 leading-relaxed">Moderate products and shops. (TODO: protect + data)</p>
+      <p className="mt-2 text-brand/80 leading-relaxed">Moderate products and care listings.</p>
+      <div className="mt-8">
+        <ListingsClient />
+      </div>
     </div>
   );
 }

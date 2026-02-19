@@ -132,7 +132,7 @@ The app uses a warm, earthy color scheme that reflects the local marketplace and
 - Pill-shaped tabs (`rounded-lg`)
 - Active tab: `bg-white text-brand shadow-sm`
 - Inactive: `text-brand/80 hover:text-brand`
-- Shows Market, Sell (if producer), Care (if caregiver + enabled)
+- Shows Market, Sell (if producer), Care (if caregiver or homestead owner)
 
 **Context Detection:**
 - Different nav links shown based on:

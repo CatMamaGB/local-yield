@@ -2,8 +2,10 @@
  * Market — product browse. Location-filtered; uses BrowseClient.
  */
 
+import { Suspense } from "react";
 import { BrowseClient } from "@/components/BrowseClient";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
 
 export default function MarketBrowsePage() {
   return (
@@ -14,7 +16,9 @@ export default function MarketBrowsePage() {
           subtitle="Set your location to see distance and nearby vs farther-out listings."
         />
         <div className="mt-8">
-          <BrowseClient />
+          <Suspense fallback={<LoadingSkeleton rows={5} />}>
+            <BrowseClient />
+          </Suspense>
         </div>
       </section>
     </div>

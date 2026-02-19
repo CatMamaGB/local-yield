@@ -49,7 +49,8 @@ model User {
   name      String?
   /// Required: single source of truth for contact. (Migration backfills existing rows then sets NOT NULL.)
   phone     String
-  zipCode   String
+  /// Optional; when null show "Add ZIP to see results near you". Only require when feature needs it (browse filter, post job, seller pickup).
+  zipCode   String?
   /// Optional address.
   addressLine1 String?  @map("address_line_1")
   city      String?
@@ -73,6 +74,12 @@ model User {
   primaryMode   PrimaryMode? @map("primary_mode")
   /// Set when user completes onboarding.
   onboardedAt   DateTime?   @map("onboarded_at")
+  /// When user accepted Terms of Use (stops redirect loops; used for checklist/analytics).
+  termsAcceptedAt   DateTime?   @map("terms_accepted_at")
+  /// When core onboarding was completed (terms + optional ZIP); used for checklist/analytics.
+  onboardingCompletedAt DateTime? @map("onboarding_completed_at")
+  /// If false, producers cannot include this user in contact export (CSV).
+  allowProducerExport Boolean @default(true) @map("allow_producer_export")
 
   userRoles     UserRole[]
   products     Product[]
@@ -101,6 +108,15 @@ model User {
   caregiverListings CareServiceListing[]
   careBookingsAsSeeker CareBooking[] @relation("CareBookingSeeker")
   careBookingsAsCaregiver CareBooking[] @relation("CareBookingCaregiver")
+  helpExchangePostings HelpExchangePosting[]
+  helpExchangeBids     HelpExchangeBid[]
+  reportsAsReporter Report[] @relation("ReportReporter")
+  reportsAsReviewer Report[] @relation("ReportReviewer")
+  reportsAssignedTo Report[] @relation("ReportAssignedTo")
+  notifications Notification[]
+  creditLedgerAsOwner CreditLedger[] @relation("CreditLedgerOwner")
+  creditLedgerCreatedBy CreditLedger[] @relation("CreditLedgerCreatedBy")
+  creditLedgerWhereProducer CreditLedger[] @relation("CreditLedgerProducer")
 
   adminActionLogs AdminActionLog[]
 }
@@ -139,6 +155,8 @@ model ProducerProfile {
   availabilityHours String? @map("availability_hours")
   /// If true, show in-app messages only; if false, also show contactEmail on storefront
   acceptInAppMessagesOnly Boolean @default(true) @map("accept_in_app_messages_only")
+  /// Featured placement in discovery until this date (null = not featured).
+  featuredUntil    DateTime? @map("featured_until")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -161,7 +179,11 @@ model CaregiverProfile {
   introAudioUrl String? @map("intro_audio_url")
   referencesText String? @map("references_text")
   languagesSpoken String? @map("languages_spoken") /// Comma-separated for now (future: enum)
-  
+  averageResponseTimeHours Float? @map("average_response_time_hours") /// Calculated from booking creation → acceptance
+  isVerified Boolean @default(false) @map("is_verified") /// Manual admin flag
+  /// Featured placement in care discovery until this date (null = not featured).
+  featuredUntil DateTime? @map("featured_until")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -275,12 +297,24 @@ model Order {
   /// Column names match initial migration (camelCase); do not @map to snake_case.
   resolutionWindowEndsAt DateTime?
   pickupCode String?
+  /// Requested delivery date/window (for delivery orders).
+  requestedDeliveryDate DateTime? @map("requested_delivery_date")
+  /// Store credit applied at checkout (0..totalCents). Persisted for refunds and receipts.
+  creditAppliedCents Int @default(0) @map("credit_applied_cents")
+  /// Amount charged via Stripe (orderTotalCents - creditAppliedCents).
+  stripeChargeCents Int? @map("stripe_charge_cents")
+  stripePaymentIntentId String? @map("stripe_payment_intent_id")
+  /// Sum of Stripe refunds; remaining refundable = stripeChargeCents - stripeRefundedCents.
+  stripeRefundedCents Int @default(0) @map("stripe_refunded_cents")
+  /// Client-generated key to prevent duplicate orders on retry.
+  idempotencyKey String? @unique @map("idempotency_key")
 
   buyer      User    @relation("OrderBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
   producer   User    @relation("OrderProducer", fields: [producerId], references: [id], onDelete: Cascade)
   product    Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
   orderItems OrderItem[]
   reviews    Review[]
+  creditLedgerEntries CreditLedger[]
 
   @@index([buyerId])
   @@index([producerId])
@@ -350,6 +384,20 @@ enum CareServiceType {
   OVERNIGHT
   BOARDING
   FARM_SITTING
+}
+
+/// Help Exchange categories (typed enum prevents data drift)
+enum HelpExchangeCategory {
+  FENCE_REPAIRS
+  GARDEN_HARVEST
+  EQUIPMENT_HELP
+}
+
+/// Help Exchange posting status
+enum HelpExchangeStatus {
+  OPEN
+  FILLED
+  CLOSED
 }
 
 /// Animal species supported
@@ -439,6 +487,9 @@ model Conversation {
   careBookingId  String?   @map("care_booking_id") /// Care: thread for this booking (optional).
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+  /// When userA last read this conversation (for unread count).
+  userALastReadAt DateTime? @map("user_a_last_read_at")
+  userBLastReadAt DateTime? @map("user_b_last_read_at")
 
   userA    User     @relation("ConversationUserA", fields: [userAId], references: [id], onDelete: Cascade)
   userB    User     @relation("ConversationUserB", fields: [userBId], references: [id], onDelete: Cascade)
@@ -538,6 +589,7 @@ model CareBooking {
   species     AnimalSpecies?
   serviceType CareServiceType? @map("service_type")
   totalCents  Int      @default(0) @map("total_cents") /// Payments later
+  idempotencyKey String? @unique @map("idempotency_key") /// Prevents double-booking on double-click
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -547,28 +599,213 @@ model CareBooking {
   @@index([careSeekerId])
   @@index([caregiverId])
   @@index([status])
+  @@index([caregiverId, startAt, endAt]) /// For availability checks
 }
 
-/// Preview/staging: who entered with passphrase (identity for audit).
-model PreviewViewer {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  createdAt DateTime @default(now())
-
-  logs PreviewAccessLog[]
+/// Help Exchange posting: job requests for farm help (fence repairs, garden help, equipment).
+model HelpExchangePosting {
+  id          String   @id @default(cuid())
+  createdById String  @map("created_by_id")
+  title       String
+  description String
+  category    HelpExchangeCategory
+  zipCode     String   @map("zip_code")
+  radiusMiles Int?     @map("radius_miles") /// Service area
+  status      HelpExchangeStatus @default(OPEN)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  bids      HelpExchangeBid[]
+  
+  @@index([status])
+  @@index([zipCode])
+  @@index([createdById])
 }
 
-/// Preview/staging: which path each viewer hit and when.
-model PreviewAccessLog {
+/// Bid/application on a help exchange posting (helper offering to do the job).
+enum HelpExchangeBidStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+model HelpExchangeBid {
   id        String   @id @default(cuid())
-  viewerId  String   @map("viewer_id")
-  path      String
-  createdAt DateTime @default(now())
-  userAgent String?  @map("user_agent")
-  ipHash    String?   @map("ip_hash")
+  postingId String   @map("posting_id")
+  bidderId  String   @map("bidder_id")
+  message   String?
+  status    HelpExchangeBidStatus @default(PENDING)
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  posting HelpExchangePosting @relation(fields: [postingId], references: [id], onDelete: Cascade)
+  bidder  User @relation(fields: [bidderId], references: [id], onDelete: Cascade)
+  
+  @@index([postingId])
+  @@index([bidderId])
+  @@unique([postingId, bidderId])
+}
 
-  viewer PreviewViewer @relation(fields: [viewerId], references: [id], onDelete: Cascade)
+enum ReportReason {
+  SPAM
+  INAPPROPRIATE_CONTENT
+  SCAM
+  HARASSMENT
+  OTHER
+}
 
-  @@index([viewerId, createdAt])
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  RESOLVED
+  DISMISSED
+}
+
+/// Order dispute problem types (when entityType = order).
+enum OrderDisputeProblemType {
+  LATE
+  DAMAGED
+  MISSING
+  NOT_AS_DESCRIBED
+  WRONG_ITEM
+  OTHER
+}
+
+/// Order dispute proposed outcome (when entityType = order).
+enum OrderDisputeProposedOutcome {
+  REFUND
+  PARTIAL_REFUND
+  REPLACEMENT
+  STORE_CREDIT
+  OTHER
+}
+
+/// Resolution outcome set by admin (for order disputes).
+enum OrderDisputeResolutionOutcome {
+  REFUND
+  PARTIAL_REFUND
+  STORE_CREDIT
+  RESOLVED_NO_REFUND
+  DISMISSED
+}
+
+model Report {
+  id          String   @id @default(cuid())
+  reporterId String   @map("reporter_id")
+  reason      ReportReason
+  description String?
+  entityType  String   @map("entity_type") /// "caregiver" | "help_exchange_posting" | "order"
+  entityId    String   @map("entity_id")
+  status      ReportStatus @default(PENDING)
+  createdAt   DateTime @default(now())
+  reviewedAt  DateTime? @map("reviewed_at")
+  reviewedById String?  @map("reviewed_by_id")
+  assignedToId String? @map("assigned_to_id")
+  /// Order disputes only: problem type and proposed outcome (required when entityType = order).
+  problemType OrderDisputeProblemType? @map("problem_type")
+  proposedOutcome OrderDisputeProposedOutcome? @map("proposed_outcome")
+  resolutionOutcome OrderDisputeResolutionOutcome? @map("resolution_outcome")
+  resolutionNote String? @map("resolution_note")
+  resolutionAmountCents Int? @map("resolution_amount_cents")
+  
+  reporter User @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reviewer User? @relation("ReportReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  assignedTo User? @relation("ReportAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  attachments ReportAttachment[]
+  
+  @@index([status])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@index([assignedToId])
+}
+
+model ReportAttachment {
+  id         String   @id @default(cuid())
+  reportId   String   @map("report_id")
+  url        String
+  mimeType   String   @map("mime_type")
+  sizeBytes  Int      @map("size_bytes")
+  createdAt  DateTime @default(now()) @map("created_at")
+  
+  report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  
+  @@index([reportId])
+}
+
+/// Producer store credit: ledger entries (positive = issued, negative = spent). Balance = SUM(amountCents) per userId+producerId, not expired.
+enum CreditLedgerReason {
+  DISPUTE_RESOLUTION
+  GOODWILL
+  ADJUSTMENT
+  CREDIT_REDEMPTION
+}
+
+model CreditLedger {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  producerId  String   @map("producer_id")
+  amountCents Int      @map("amount_cents") /// positive = issued, negative = spent
+  reason      CreditLedgerReason
+  orderId     String?  @map("order_id")
+  reportId    String?  @map("report_id")
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  expiresAt   DateTime? @map("expires_at")
+  
+  user      User  @relation("CreditLedgerOwner", fields: [userId], references: [id], onDelete: Cascade)
+  producer  User  @relation("CreditLedgerProducer", fields: [producerId], references: [id], onDelete: Cascade)
+  order     Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  createdBy User  @relation("CreditLedgerCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  
+  @@index([userId, producerId])
+  @@index([orderId])
+  @@index([reportId])
+}
+
+/// Request logging for observability and debugging.
+model RequestLog {
+  id          String   @id @default(cuid())
+  requestId   String   @map("request_id")
+  route       String
+  method      String
+  statusCode  Int      @map("status_code")
+  durationMs  Int      @map("duration_ms")
+  userId      String?  @map("user_id")
+  ip          String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  
+  @@index([requestId])
+  @@index([route])
+  @@index([statusCode])
+  @@index([createdAt])
+  @@index([userId])
+}
+
+enum NotificationType {
+  BOOKING_REQUESTED
+  BOOKING_ACCEPTED
+  BOOKING_DECLINED
+  BOOKING_CANCELED
+  BOOKING_COMPLETED
+  NEW_MESSAGE
+  POSTING_CREATED
+  STORE_CREDIT_ISSUED
+  ORDER_PLACED
+  ORDER_FULFILLED
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  type      NotificationType
+  title     String
+  body      String
+  link      String?  /// URL to relevant page
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, read])
+  @@index([createdAt])
 }

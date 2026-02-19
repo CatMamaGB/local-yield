@@ -39,6 +39,10 @@ export interface CreateOrderInput {
   notes?: string;
   pickupDate?: Date;
   eventId?: string;
+  /** Store credit to apply (validated against balance and total). */
+  appliedCreditCents?: number;
+  /** Client-generated key to prevent duplicate orders on retry. */
+  idempotencyKey?: string;
 }
 
 /**
@@ -82,6 +86,16 @@ export async function createOrder(input: CreateOrderInput): Promise<{ orderId: s
 
   if (items.length === 0) {
     throw new OrderCreationError("At least one item is required", "INVALID_INPUT");
+  }
+
+  if (input.idempotencyKey) {
+    const existing = await prisma.order.findUnique({
+      where: { idempotencyKey: input.idempotencyKey },
+      select: { id: true, pickupCode: true },
+    });
+    if (existing) {
+      return { orderId: existing.id, pickupCode: existing.pickupCode ?? "" };
+    }
   }
 
   // Use transaction for atomicity
@@ -165,6 +179,24 @@ export async function createOrder(input: CreateOrderInput): Promise<{ orderId: s
       totalCents = orderItemsCreate.reduce((sum, i) => sum + i.quantity * i.unitPriceCents, 0) + (input.deliveryFeeCents ?? 0);
     }
 
+    const appliedCreditCents = Math.max(0, Math.min(input.appliedCreditCents ?? 0, totalCents));
+    if (appliedCreditCents > 0) {
+      const balanceResult = await tx.creditLedger.aggregate({
+        where: { userId: input.buyerId, producerId: input.producerId },
+        _sum: { amountCents: true },
+      });
+      const balance = balanceResult._sum.amountCents ?? 0;
+      if (appliedCreditCents > balance) {
+        throw new OrderCreationError(
+          `Insufficient store credit. Available: $${(balance / 100).toFixed(2)}, requested: $${(appliedCreditCents / 100).toFixed(2)}`,
+          "INSUFFICIENT_CREDIT"
+        );
+      }
+    }
+
+    const stripeChargeCents = totalCents - appliedCreditCents;
+    const creditOnly = appliedCreditCents === totalCents;
+
     // 3.7 Fix resolution window logic: Always set it (use now + 48h if no pickupDate)
     const pickupDate = input.pickupDate
       ? input.pickupDate instanceof Date
@@ -181,20 +213,22 @@ export async function createOrder(input: CreateOrderInput): Promise<{ orderId: s
     const fulfillmentType = input.fulfillmentType ?? "PICKUP";
     const deliveryFeeCents = input.deliveryFeeCents ?? 0;
 
-    // Paid state: only set paid=true when Stripe webhook confirms (future). At creation we always set paid=false.
-    // Cash orders: viaCash=true, producer may later mark PAID via PATCH. Card: paid set by webhook only.
+    // Paid state: credit-only orders are paid immediately; otherwise set by Stripe webhook or producer PATCH.
     const order = await tx.order.create({
       data: {
         buyerId: input.buyerId,
         producerId: input.producerId,
-        productId: input.productId ?? items[0]?.productId ?? null, // Legacy field
+        productId: input.productId ?? items[0]?.productId ?? null,
         notes: input.notes ?? null,
-        paid: false, // Never true at creation; set by Stripe webhook (card) or producer PATCH (cash)
+        paid: creditOnly, // Credit-only: paid immediately; else webhook or PATCH
         viaCash: input.paymentMethod === "cash",
         status: "PENDING",
         fulfillmentType,
         deliveryFeeCents,
         totalCents,
+        creditAppliedCents: appliedCreditCents,
+        stripeChargeCents: stripeChargeCents > 0 ? stripeChargeCents : null,
+        idempotencyKey: input.idempotencyKey ?? null,
         pickupDate,
         resolutionWindowEndsAt,
         pickupCode,
@@ -203,6 +237,19 @@ export async function createOrder(input: CreateOrderInput): Promise<{ orderId: s
         },
       },
     });
+
+    if (appliedCreditCents > 0) {
+      await tx.creditLedger.create({
+        data: {
+          userId: input.buyerId,
+          producerId: input.producerId,
+          amountCents: -appliedCreditCents,
+          reason: "CREDIT_REDEMPTION",
+          orderId: order.id,
+          createdById: input.buyerId,
+        },
+      });
+    }
 
     return { orderId: order.id, pickupCode };
   });
@@ -245,6 +292,22 @@ export async function getOrdersForProducer(producerId: string) {
     },
     orderBy: { createdAt: "desc" },
   });
+}
+
+/** Single order by id; returns null if not found or user is not buyer/producer/admin. */
+export async function getOrderByIdForUser(orderId: string, userId: string, isAdmin: boolean) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: {
+      product: { select: { id: true, title: true, price: true, delivery: true } },
+      orderItems: { include: { product: { select: { id: true, title: true, price: true } } } },
+      buyer: { select: { id: true, name: true, email: true } },
+      producer: { select: { id: true, name: true } },
+    },
+  });
+  if (!order) return null;
+  if (isAdmin || order.buyerId === userId || order.producerId === userId) return order;
+  return null;
 }
 
 /** Paid or fulfilled orders for producer — lightweight for analytics pages. */

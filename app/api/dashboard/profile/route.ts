@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
         producerProfile: true,
       },
     });
-    if (!dbUser) return fail("Not found", "NOT_FOUND", 404);
+    if (!dbUser) return fail("Not found", { code: "NOT_FOUND", status: 404 });
     const profile = dbUser.producerProfile;
     const upcomingEvents = await prisma.event.findMany({
       where: { userId: user.id, eventDate: { gte: new Date() } },
@@ -65,13 +65,13 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     logError("dashboard/profile/GET", e, { requestId, path: "/api/dashboard/profile", method: "GET" });
     const message = e instanceof Error ? e.message : "Forbidden";
-    return fail(message, "FORBIDDEN", 403);
+    return fail(message, { code: "FORBIDDEN", status: 403 });
   }
 }
 
 export async function PATCH(request: NextRequest) {
   const requestId = getRequestId(request);
-  const rateLimitRes = await checkRateLimit(request);
+  const rateLimitRes = await checkRateLimit(request, undefined, requestId);
   if (rateLimitRes) return rateLimitRes;
 
   try {
@@ -80,14 +80,14 @@ export async function PATCH(request: NextRequest) {
     // Parse and validate request body
     const { data: body, error: parseError } = await parseJsonBody(request);
     if (parseError) {
-      return fail(parseError, "INVALID_JSON", 400);
+      return fail(parseError, { code: "INVALID_JSON", status: 400 });
     }
 
     // Validate ZIP code if provided
     if (body.zipCode !== undefined) {
       const zipValidation = ProfileUpdateSchema.shape.zipCode.safeParse(body.zipCode);
       if (!zipValidation.success) {
-        return fail("Invalid ZIP code. Must be a valid 5-digit ZIP code.", "INVALID_ZIP", 400);
+        return fail("Invalid ZIP code. Must be a valid 5-digit ZIP code.", { code: "INVALID_ZIP", status: 400 });
       }
     }
 
@@ -95,7 +95,7 @@ export async function PATCH(request: NextRequest) {
     if (body.pickupZipCode !== null && body.pickupZipCode !== undefined) {
       const pickupZipValidation = ProfileUpdateSchema.shape.pickupZipCode.safeParse(body.pickupZipCode);
       if (!pickupZipValidation.success) {
-        return fail("Invalid pickup ZIP code. Must be a valid 5-digit ZIP code.", "INVALID_PICKUP_ZIP", 400);
+        return fail("Invalid pickup ZIP code. Must be a valid 5-digit ZIP code.", { code: "INVALID_PICKUP_ZIP", status: 400 });
       }
     }
 
@@ -122,10 +122,10 @@ export async function PATCH(request: NextRequest) {
     const acceptInAppMessagesOnly = body.acceptInAppMessagesOnly !== undefined ? Boolean(body.acceptInAppMessagesOnly) : undefined;
 
     if (contactEmail !== undefined && contactEmail && !ProfileUpdateSchema.shape.contactEmail.safeParse(contactEmail).success) {
-      return fail("Invalid contact email.", "INVALID_EMAIL", 400);
+      return fail("Invalid contact email.", { code: "INVALID_EMAIL", status: 400 });
     }
     if (profileImageUrl !== undefined && profileImageUrl && !ProfileUpdateSchema.shape.profileImageUrl.safeParse(profileImageUrl).success) {
-      return fail("Invalid profile image URL.", "INVALID_URL", 400);
+      return fail("Invalid profile image URL.", { code: "INVALID_URL", status: 400 });
     }
 
     if (name !== undefined || bio !== undefined || zipCode !== undefined) {
@@ -180,7 +180,7 @@ export async function PATCH(request: NextRequest) {
   } catch (e) {
     logError("dashboard/profile/PATCH", e, { requestId, path: "/api/dashboard/profile", method: "PATCH" });
     const message = e instanceof Error ? e.message : "";
-    if (message === "Forbidden") return fail(message, "FORBIDDEN", 403);
-    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
+    if (message === "Forbidden") return fail(message, { code: "FORBIDDEN", status: 403 });
+    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
   }
 }

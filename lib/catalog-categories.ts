@@ -1,36 +1,20 @@
 /**
- * Catalog categories: predefined groups (shared with ProductCatalogForm) and helpers
- * for custom categories. Used by API routes and form.
+ * Catalog categories: custom categories (prisma) and re-exports from product-categories.
+ * Use lib/product-categories from client components; use this file from server/API only.
  */
 
 import type { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 
-export interface ProductSubcategory {
-  id: string;
-  label: string;
-  defaultImageUrl: string;
-}
-
-export interface ProductCategoryGroup {
-  id: string;
-  label: string;
-  subcategories: ProductSubcategory[];
-}
-
-/** Predefined groups; must match ProductCatalogForm. */
-export const PRODUCT_CATEGORY_GROUPS: ProductCategoryGroup[] = [
-  { id: "produce", label: "Produce", subcategories: [{ id: "fruits", label: "Fruits", defaultImageUrl: "https://placehold.co/200x200?text=Fruits" }, { id: "vegetables", label: "Vegetables", defaultImageUrl: "https://placehold.co/200x200?text=Vegetables" }, { id: "herbs", label: "Herbs", defaultImageUrl: "https://placehold.co/200x200?text=Herbs" }] },
-  { id: "dairy", label: "Dairy", subcategories: [{ id: "milk", label: "Milk", defaultImageUrl: "https://placehold.co/200x200?text=Milk" }, { id: "cheese", label: "Cheese", defaultImageUrl: "https://placehold.co/200x200?text=Cheese" }, { id: "yogurt", label: "Yogurt", defaultImageUrl: "https://placehold.co/200x200?text=Yogurt" }] },
-  { id: "meat", label: "Meat", subcategories: [{ id: "poultry", label: "Poultry", defaultImageUrl: "https://placehold.co/200x200?text=Poultry" }, { id: "beef", label: "Beef", defaultImageUrl: "https://placehold.co/200x200?text=Beef" }, { id: "pork", label: "Pork", defaultImageUrl: "https://placehold.co/200x200?text=Pork" }] },
-  { id: "baked_goods", label: "Baked Goods", subcategories: [{ id: "bread", label: "Bread", defaultImageUrl: "https://placehold.co/200x200?text=Bread" }, { id: "pastries", label: "Pastries", defaultImageUrl: "https://placehold.co/200x200?text=Pastries" }, { id: "cakes", label: "Cakes", defaultImageUrl: "https://placehold.co/200x200?text=Cakes" }] },
-  { id: "beverages", label: "Beverages", subcategories: [{ id: "juices", label: "Juices", defaultImageUrl: "https://placehold.co/200x200?text=Juices" }, { id: "coffee", label: "Coffee", defaultImageUrl: "https://placehold.co/200x200?text=Coffee" }, { id: "tea", label: "Tea", defaultImageUrl: "https://placehold.co/200x200?text=Tea" }] },
-  { id: "preserves", label: "Preserves", subcategories: [{ id: "jams", label: "Jams", defaultImageUrl: "https://placehold.co/200x200?text=Jams" }, { id: "pickles", label: "Pickles", defaultImageUrl: "https://placehold.co/200x200?text=Pickles" }, { id: "honey", label: "Honey", defaultImageUrl: "https://placehold.co/200x200?text=Honey" }] },
-  { id: "handcrafted", label: "Handcrafted", subcategories: [{ id: "jewelry", label: "Jewelry", defaultImageUrl: "https://placehold.co/200x200?text=Jewelry" }, { id: "pottery", label: "Pottery", defaultImageUrl: "https://placehold.co/200x200?text=Pottery" }, { id: "candles", label: "Candles", defaultImageUrl: "https://placehold.co/200x200?text=Candles" }] },
-  { id: "prepared_foods", label: "Prepared Foods", subcategories: [{ id: "sauces", label: "Sauces", defaultImageUrl: "https://placehold.co/200x200?text=Sauces" }, { id: "meals", label: "Meals", defaultImageUrl: "https://placehold.co/200x200?text=Meals" }, { id: "snacks", label: "Snacks", defaultImageUrl: "https://placehold.co/200x200?text=Snacks" }] },
-];
-
-export const PREDEFINED_GROUP_IDS = PRODUCT_CATEGORY_GROUPS.map((g) => g.id);
+export {
+  PRODUCT_CATEGORY_GROUPS,
+  PREDEFINED_GROUP_IDS,
+  ALLOWED_CATEGORY_IDS,
+  getCategoryIdsForGroup,
+  type ProductSubcategory,
+  type ProductCategoryGroup,
+  type AllowedCategoryId,
+} from "./product-categories";
 
 export interface CustomCategoryForProducer {
   id: string;

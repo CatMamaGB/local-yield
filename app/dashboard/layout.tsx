@@ -1,14 +1,15 @@
 /**
  * Dashboard layout: for producers/admins, show DashboardNav; otherwise BuyerDashboardNav.
- * Single source of truth: getUserCapabilities(user).canSell.
+ * __last_active_mode cookie is set in proxy.ts (Next.js 16 only allows cookie mutation there).
  */
 
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { getUserCapabilities } from "@/lib/authz";
+import { getUserCapabilities } from "@/lib/authz/client";
 import { getProducerAlertCounts } from "@/lib/dashboard-alerts";
 import { DashboardNav } from "./DashboardNav";
 import { BuyerDashboardNav } from "./BuyerDashboardNav";
+import { OnboardingChecklistBanner } from "@/components/OnboardingChecklistBanner";
 
 export default async function DashboardLayout({
   children,
@@ -18,13 +19,7 @@ export default async function DashboardLayout({
   const user = await getCurrentUser();
   if (!user) redirect("/auth/login");
 
-  const { canSell, canCare, canAdmin } = getUserCapabilities(user);
-  
-  // Admins should use the admin section, not the producer dashboard
-  if (canAdmin) {
-    redirect("/admin");
-  }
-  
+  const { canSell, canCare } = getUserCapabilities(user);
   const showProducerTabs = canSell;
   const showCareBookings = canCare;
 
@@ -41,11 +36,13 @@ export default async function DashboardLayout({
           pendingReviewsCount={alertCounts.pendingReviewsCount}
           unreadMessagesCount={alertCounts.unreadMessagesCount}
           showCareBookings={showCareBookings}
-          showSubscriptions={showProducerTabs}
         />
       ) : (
         <BuyerDashboardNav />
       )}
+      <div className="mx-auto max-w-6xl px-4 py-3">
+        <OnboardingChecklistBanner />
+      </div>
       <main>{children}</main>
     </div>
   );

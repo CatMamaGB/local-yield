@@ -56,6 +56,7 @@ export const DASHBOARD_NAV_CONFIG: readonly NavSection[] = [
       { href: "/dashboard/analytics", label: "Sales Analytics" },
       { href: "/dashboard/orders", label: "Orders", badge: "orders" },
       { href: "/dashboard/messages", label: "Messages", badge: "messages" },
+      { href: "/dashboard/notifications", label: "Notifications" },
     ] as const,
   },
   {
@@ -67,16 +68,23 @@ export const DASHBOARD_NAV_CONFIG: readonly NavSection[] = [
       { href: "/dashboard/events", label: "Events" },
       { href: "/dashboard/reviews", label: "Reviews", badge: "reviews" },
       { href: "/dashboard/records", label: "Records" },
+      { href: "/dashboard/cases", label: "My cases" },
       {
         href: "/dashboard/care-bookings",
         label: "Care bookings",
         when: (ctx) => ctx.showCareBookings,
       },
       {
-        href: "/dashboard/subscriptions",
-        label: "Subscriptions",
-        when: (ctx) => ctx.showSubscriptions,
+        href: "/dashboard/job-postings",
+        label: "My job postings",
+        when: (ctx) => ctx.showCareBookings,
       },
+      {
+        href: "/dashboard/my-bids",
+        label: "My bids",
+        when: (ctx) => ctx.showCareBookings,
+      },
+      // Subscriptions hidden until feature exists; page still at /dashboard/subscriptions for direct link
     ] as const,
   },
 ] as const;
@@ -94,10 +102,14 @@ export type RowNavLink = {
 };
 
 export const ADMIN_ROW_NAV: readonly RowNavLink[] = [
+  { href: "/admin/analytics", label: "Analytics" },
   { href: "/admin/reviews", label: "Reviews" },
   { href: "/admin/flagged-reviews", label: "Flagged reviews" },
+  { href: "/admin/reports", label: "Reports" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/listings", label: "Listings" },
+  { href: "/admin/bookings", label: "Bookings" },
+  { href: "/admin/help-exchange", label: "Help Exchange" },
   { href: "/admin/custom-categories", label: "Custom categories" },
 ];
 

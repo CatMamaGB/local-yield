@@ -9,6 +9,7 @@ import { ok, fail, parseJsonBody } from "@/lib/api";
 import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limit";
 import { getRequestId } from "@/lib/request-id";
 import { logError } from "@/lib/logger";
+import { getPostLoginRedirect } from "@/lib/redirects";
 import { PlatformUse, Role, PrimaryMode } from "@prisma/client";
 
 const VALID_ROLES = ["BUYER", "PRODUCER", "ADMIN"] as const;
@@ -41,23 +42,23 @@ const STUB_NAMES: Record<string, string> = {
 
 export async function POST(request: NextRequest) {
   if (process.env.NODE_ENV !== "development") {
-    return fail("Not available", "NOT_AVAILABLE", 404);
+    return fail("Not available", { code: "NOT_AVAILABLE", status: 404 });
   }
 
   const requestId = getRequestId(request);
-  const rateLimitRes = await checkRateLimit(request, RATE_LIMIT_PRESETS.AUTH);
+  const rateLimitRes = await checkRateLimit(request, RATE_LIMIT_PRESETS.AUTH, requestId);
   if (rateLimitRes) return rateLimitRes;
 
   try {
     // Parse and validate request body
     const { data: body, error: parseError } = await parseJsonBody(request);
     if (parseError) {
-      return fail(parseError, "INVALID_JSON", 400);
+      return fail(parseError, { code: "INVALID_JSON", status: 400 });
     }
 
     const role = body.role;
     if (!VALID_ROLES.includes(role)) {
-      return fail("Invalid role", "INVALID_ROLE", 400);
+      return fail("Invalid role", { code: "INVALID_ROLE", status: 400 });
     }
 
     const userId = STUB_USER_IDS[role];
@@ -107,7 +108,24 @@ export async function POST(request: NextRequest) {
       });
     });
 
-    const res = ok({ redirect: "/auth/onboarding" });
+    const lastActiveMode = request.cookies.get("__last_active_mode")?.value ?? null;
+    const url = new URL(request.url);
+    const requestedUrl = url.searchParams.get("next") ?? null;
+    const redirectPath = getPostLoginRedirect(lastActiveMode, { hasCart: false, requestedUrl });
+
+    // If user has not completed onboarding (terms + optional steps), send to onboarding; otherwise smart redirect
+    const dbUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { onboardingCompletedAt: true },
+    });
+    const goToOnboarding = !dbUser?.onboardingCompletedAt;
+    const finalRedirect = goToOnboarding
+      ? requestedUrl
+        ? `/auth/onboarding?from=login&next=${encodeURIComponent(requestedUrl)}`
+        : "/auth/onboarding?from=login"
+      : redirectPath;
+
+    const res = ok({ redirect: finalRedirect });
     const isProduction = (process.env.NODE_ENV as string) === "production";
     res.cookies.set("__dev_user_id", userId, {
       path: "/",
@@ -126,6 +144,6 @@ export async function POST(request: NextRequest) {
     return res;
   } catch (error) {
     logError("auth/dev-login/POST", error, { requestId, path: "/api/auth/dev-login", method: "POST" });
-    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
+    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
   }
 }

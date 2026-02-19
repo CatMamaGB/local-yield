@@ -59,7 +59,7 @@
 ---
 
 ## 7. Care browse
-- [ ] Open **http://localhost:3000/care/browse** (if Care enabled)
+- [ ] Open **http://localhost:3000/care/browse**
 - [ ] Enter invalid ZIP (e.g. "12") — validation message
 - [ ] Enter valid ZIP (e.g. 90210) — caregivers or empty state
 - [ ] API error — **InlineAlert**

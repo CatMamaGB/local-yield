@@ -16,19 +16,19 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const requestId = getRequestId(request);
-  const rateLimitRes = await checkRateLimit(request);
+  const rateLimitRes = await checkRateLimit(request, undefined, requestId);
   if (rateLimitRes) return rateLimitRes;
 
   try {
     const user = await requireProducerOrAdmin();
     const { id } = await params;
-    if (!id) return fail("Missing id", "VALIDATION_ERROR", 400);
+    if (!id) return fail("Missing id", { code: "VALIDATION_ERROR", status: 400 });
     const existing = await prisma.event.findFirst({
       where: { id, userId: user.id },
     });
-    if (!existing) return fail("Event not found", "NOT_FOUND", 404);
+    if (!existing) return fail("Event not found", { code: "NOT_FOUND", status: 404 });
     const { data: body, error: parseError } = await parseJsonBody(request);
-    if (parseError) return fail(parseError, "INVALID_JSON", 400);
+    if (parseError) return fail(parseError, { code: "INVALID_JSON", status: 400 });
     const name = body?.name !== undefined ? String(body.name).trim() : undefined;
     const location = body?.location !== undefined ? String(body.location).trim() : undefined;
     const eventDate = body?.eventDate ? new Date(body.eventDate) : undefined;
@@ -54,8 +54,8 @@ export async function PATCH(
   } catch (e) {
     logError("dashboard/events/[id]/PATCH", e, { requestId, path: "/api/dashboard/events/[id]", method: "PATCH" });
     const message = e instanceof Error ? e.message : "";
-    if (message === "Forbidden") return fail(message, "FORBIDDEN", 403);
-    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
+    if (message === "Forbidden") return fail(message, { code: "FORBIDDEN", status: 403 });
+    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
   }
 }
 
@@ -64,23 +64,23 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const requestId = getRequestId(request);
-  const rateLimitRes = await checkRateLimit(request);
+  const rateLimitRes = await checkRateLimit(request, undefined, requestId);
   if (rateLimitRes) return rateLimitRes;
 
   try {
     const user = await requireProducerOrAdmin();
     const { id } = await params;
-    if (!id) return fail("Missing id", "VALIDATION_ERROR", 400);
+    if (!id) return fail("Missing id", { code: "VALIDATION_ERROR", status: 400 });
     const existing = await prisma.event.findFirst({
       where: { id, userId: user.id },
     });
-    if (!existing) return fail("Event not found", "NOT_FOUND", 404);
+    if (!existing) return fail("Event not found", { code: "NOT_FOUND", status: 404 });
     await prisma.event.delete({ where: { id } });
     return ok(undefined);
   } catch (e) {
     logError("dashboard/events/[id]/DELETE", e, { requestId, path: "/api/dashboard/events/[id]", method: "DELETE" });
     const message = e instanceof Error ? e.message : "";
-    if (message === "Forbidden") return fail(message, "FORBIDDEN", 403);
-    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
+    if (message === "Forbidden") return fail(message, { code: "FORBIDDEN", status: 403 });
+    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
   }
 }

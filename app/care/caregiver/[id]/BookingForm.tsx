@@ -4,9 +4,12 @@
  * Booking form for requesting care from a caregiver.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ZipCodeInput } from "@/components/ZipCodeInput";
+import { SERVICE_TYPE_LABELS, SPECIES_LABELS } from "@/lib/care/labels";
+import { logTelemetry } from "@/lib/telemetry/telemetry";
+import type { CareBookingStartedEvent } from "@/lib/telemetry/events";
 import type { AnimalSpecies, CareServiceType } from "@prisma/client";
 import { apiPost } from "@/lib/client/api-client";
 import { ApiError, apiErrorMessage } from "@/lib/client/api-client";
@@ -15,28 +18,6 @@ import { InlineAlert } from "@/components/ui/InlineAlert";
 interface BookingFormProps {
   caregiverId: string;
 }
-
-// UI labels (i18n-friendly)
-const LABELS = {
-  species: {
-    HORSES: "Horses",
-    CATTLE: "Cattle",
-    GOATS: "Goats",
-    SHEEP: "Sheep",
-    PIGS: "Pigs",
-    POULTRY: "Poultry",
-    ALPACAS: "Alpacas",
-    LLAMAS: "Llamas",
-    DONKEYS: "Donkeys",
-    OTHER: "Other",
-  },
-  serviceType: {
-    DROP_IN: "Drop-in visits",
-    OVERNIGHT: "Overnight care",
-    BOARDING: "Boarding",
-    FARM_SITTING: "Farm sitting",
-  },
-} as const;
 
 export function BookingForm({ caregiverId }: BookingFormProps) {
   const router = useRouter();
@@ -50,6 +31,15 @@ export function BookingForm({ caregiverId }: BookingFormProps) {
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Log booking started event on mount
+  useEffect(() => {
+    const event: CareBookingStartedEvent = {
+      event: "care_booking_started",
+      caregiverId,
+    };
+    logTelemetry(event);
+  }, [caregiverId]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -72,7 +62,7 @@ export function BookingForm({ caregiverId }: BookingFormProps) {
     setSubmitting(true);
 
     try {
-      const data = await apiPost<{ conversationId: string }>("/api/care/bookings", {
+      const data = await apiPost<{ bookingId: string; conversationId: string }>("/api/care/bookings", {
         caregiverId,
         startAt: startAt.toISOString(),
         endAt: endAt.toISOString(),
@@ -81,7 +71,7 @@ export function BookingForm({ caregiverId }: BookingFormProps) {
         species: species || undefined,
         serviceType: serviceType || undefined,
       });
-      router.push(`/dashboard/messages?conversation=${data.conversationId}`);
+      router.push(`/dashboard/messages?conversationId=${data.conversationId}`);
     } catch (err) {
       setError(err instanceof ApiError ? apiErrorMessage(err) : (err instanceof Error ? err.message : "Failed to request booking"));
     } finally {
@@ -171,7 +161,7 @@ export function BookingForm({ caregiverId }: BookingFormProps) {
             className="w-full rounded-lg border border-brand/20 px-3 py-2 text-brand focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/20"
           >
             <option value="">Select species</option>
-            {Object.entries(LABELS.species).map(([key, label]) => (
+            {Object.entries(SPECIES_LABELS).map(([key, label]) => (
               <option key={key} value={key}>
                 {label}
               </option>
@@ -189,7 +179,7 @@ export function BookingForm({ caregiverId }: BookingFormProps) {
             className="w-full rounded-lg border border-brand/20 px-3 py-2 text-brand focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/20"
           >
             <option value="">Select service</option>
-            {Object.entries(LABELS.serviceType).map(([key, label]) => (
+            {Object.entries(SERVICE_TYPE_LABELS).map(([key, label]) => (
               <option key={key} value={key}>
                 {label}
               </option>

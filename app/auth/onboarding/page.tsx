@@ -1,24 +1,29 @@
 /**
- * Onboarding: single place for roles (multi-select) + ZIP. Shown after sign-in/sign-up until complete.
- * Both Clerk and dev mode always route through here after successful authentication.
+ * Onboarding: terms + ZIP + roles. Shown until terms accepted; ZIP can be skipped (gentle prompt later).
+ * Respects next= for post-onboarding redirect.
  */
 
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { getCurrentUser } from "@/lib/auth";
-import { getPostOnboardingRedirect } from "@/lib/redirects";
+import { getPostLoginRedirect, sanitizeNextPath } from "@/lib/redirects";
 import { OnboardingClient } from "./OnboardingClient";
 
-export default async function OnboardingPage() {
+export default async function OnboardingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
   const user = await getCurrentUser();
   if (!user) {
     redirect("/auth/login");
   }
-  if (user.zipCode && user.zipCode !== "00000") {
-    redirect(getPostOnboardingRedirect(user));
+  if (user.termsAcceptedAt) {
+    const cookieStore = await cookies();
+    const lastActiveMode = cookieStore.get("__last_active_mode")?.value ?? null;
+    const rawNext = (await searchParams).next;
+    const requestedUrl = sanitizeNextPath(rawNext);
+    redirect(getPostLoginRedirect(lastActiveMode, { requestedUrl: requestedUrl ?? undefined }));
   }
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-brand-light px-4">
-      <OnboardingClient />
-    </div>
-  );
+  return <OnboardingClient />;
 }

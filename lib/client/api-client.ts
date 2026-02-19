@@ -21,9 +21,11 @@ export class ApiError extends Error {
   }
 }
 
+type ApiErrorShape = string | { code: string; message: string };
+
 type ApiJson =
   | { ok: true; data: unknown }
-  | { ok: false; error: string; code?: string; requestId?: string };
+  | { ok: false; error: ApiErrorShape; code?: string; requestId?: string };
 
 function isApiJson(value: unknown): value is ApiJson {
   return (
@@ -32,6 +34,10 @@ function isApiJson(value: unknown): value is ApiJson {
     "ok" in value &&
     typeof (value as ApiJson).ok === "boolean"
   );
+}
+
+function isStructuredError(error: ApiErrorShape): error is { code: string; message: string } {
+  return typeof error === "object" && error !== null && "code" in error && "message" in error;
 }
 
 async function parseResponse<T>(res: Response): Promise<T> {
@@ -56,15 +62,17 @@ async function parseResponse<T>(res: Response): Promise<T> {
   }
 
   const { error, code, requestId } = json;
-  const message = typeof error === "string" ? error : "Something went wrong";
+  const isStructured = isStructuredError(error);
+  const message = isStructured ? error.message : typeof error === "string" ? error : "Something went wrong";
+  const errorCode = isStructured ? error.code : code;
   const isRateLimit =
-    res.status === 429 || code === "RATE_LIMIT" || code === "MESSAGES_RATE_LIMIT";
+    res.status === 429 || errorCode === "RATE_LIMIT" || errorCode === "MESSAGES_RATE_LIMIT";
   const friendlyMessage = isRateLimit
     ? "Too many requests. Please wait a moment and try again."
     : message;
 
   throw new ApiError(friendlyMessage, {
-    code: code ?? (isRateLimit ? "RATE_LIMIT" : undefined),
+    code: errorCode ?? (isRateLimit ? "RATE_LIMIT" : undefined),
     status: res.status,
     requestId,
   });

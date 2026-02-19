@@ -21,25 +21,25 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const requestId = getRequestId(request);
-  const rateLimitRes = await checkRateLimit(request);
+  const rateLimitRes = await checkRateLimit(request, undefined, requestId);
   if (rateLimitRes) return rateLimitRes;
 
   try {
     const admin = await requireAdmin();
     const { id } = await params;
-    if (!id) return fail("Missing category id", "VALIDATION_ERROR", 400);
+    if (!id) return fail("Missing category id", { code: "VALIDATION_ERROR", status: 400 });
 
     const { data: body, error: parseError } = await parseJsonBody(request);
-    if (parseError) return fail(parseError, "INVALID_JSON", 400);
+    if (parseError) return fail(parseError, { code: "INVALID_JSON", status: 400 });
 
     const status = body?.status === "APPROVED" ? "APPROVED" : body?.status === "REJECTED" ? "REJECTED" : null;
     const correctedName =
       body?.correctedName != null ? String(body.correctedName).trim() || null : undefined;
 
     const existing = await prisma.customCategory.findUnique({ where: { id } });
-    if (!existing) return fail("Custom category not found", "NOT_FOUND", 404);
-    if (existing.status === "APPROVED") return fail("Already approved", "VALIDATION_ERROR", 400);
-    if (existing.status === "REJECTED") return fail("Already rejected", "VALIDATION_ERROR", 400);
+    if (!existing) return fail("Custom category not found", { code: "NOT_FOUND", status: 404 });
+    if (existing.status === "APPROVED") return fail("Already approved", { code: "VALIDATION_ERROR", status: 400 });
+    if (existing.status === "REJECTED") return fail("Already rejected", { code: "VALIDATION_ERROR", status: 400 });
 
     const previousStatus = existing.status;
     const updateData: {
@@ -91,7 +91,7 @@ export async function PATCH(
   } catch (e) {
     logError("admin/custom-categories/[id]/PATCH", e, { requestId, path: "/api/admin/custom-categories/[id]", method: "PATCH" });
     const message = e instanceof Error ? e.message : "";
-    if (message === "Forbidden") return fail(message, "FORBIDDEN", 403);
-    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
+    if (message === "Forbidden") return fail(message, { code: "FORBIDDEN", status: 403 });
+    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
   }
 }

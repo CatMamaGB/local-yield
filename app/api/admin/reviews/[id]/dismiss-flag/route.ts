@@ -15,23 +15,23 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const requestId = getRequestId(request);
-  const rateLimitRes = await checkRateLimit(request);
+  const rateLimitRes = await checkRateLimit(request, undefined, requestId);
   if (rateLimitRes) return rateLimitRes;
 
   let admin: { id: string };
   try {
     admin = await requireAdmin();
   } catch {
-    return fail("Forbidden", "FORBIDDEN", 403);
+    return fail("Forbidden", { code: "FORBIDDEN", status: 403 });
   }
   const { id } = await params;
-  if (!id) return fail("Missing review id", "VALIDATION_ERROR", 400);
+  if (!id) return fail("Missing review id", { code: "VALIDATION_ERROR", status: 400 });
   try {
     await dismissFlagByAdmin(id);
     await logReviewAdminAction(admin.id, "REVIEW_DISMISS_FLAG", id, {});
     return ok(undefined);
   } catch (e) {
     logError("admin/reviews/[id]/dismiss-flag/POST", e, { requestId, path: "/api/admin/reviews/[id]/dismiss-flag", method: "POST" });
-    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
+    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
   }
 }

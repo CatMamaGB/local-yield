@@ -79,7 +79,7 @@ export function RequestItemForm({ defaultZip = "" }: RequestItemFormProps) {
             id="request-radius"
             type="number"
             min={1}
-            max={100}
+            max={150}
             value={radiusMiles}
             onChange={(e) => setRadiusMiles(Number(e.target.value) || 25)}
             className="mt-1 w-full rounded border border-brand/30 px-3 py-2 text-brand"

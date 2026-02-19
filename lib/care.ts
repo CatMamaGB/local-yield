@@ -20,6 +20,7 @@ export interface CaregiverSummary {
   name: string | null;
   zipCode: string;
   distance: number | null;
+  featured?: boolean;
   caregiverProfile: {
     bio: string | null;
     yearsExperience: number | null;
@@ -70,6 +71,7 @@ export async function listCaregiversByRadius(input: ListCaregiversInput): Promis
           tasksComfort: true,
           introVideoUrl: true,
           introAudioUrl: true,
+          featuredUntil: true,
         },
       },
       caregiverListings: {
@@ -115,7 +117,12 @@ export async function listCaregiversByRadius(input: ListCaregiversInput): Promis
       };
     })
     .filter((c) => c.nearby && c.caregiverListings.length > 0)
+    .map((c) => ({
+      ...c,
+      featured: !!(c.caregiverProfile?.featuredUntil && new Date() <= c.caregiverProfile.featuredUntil),
+    }))
     .sort((a, b) => {
+      if (a.featured !== b.featured) return a.featured ? -1 : 1;
       const da = a.distance ?? 9999;
       const db = b.distance ?? 9999;
       return da - db;
@@ -126,6 +133,7 @@ export async function listCaregiversByRadius(input: ListCaregiversInput): Promis
     name: c.name,
     zipCode: c.zipCode,
     distance: c.distance ?? null,
+    featured: c.featured,
     caregiverProfile: c.caregiverProfile,
     listings: c.caregiverListings.map((l) => ({
       id: l.id,
@@ -191,13 +199,40 @@ export interface CreateCareBookingInput {
   notes?: string;
   species?: AnimalSpecies;
   serviceType?: CareServiceType;
+  idempotencyKey?: string;
 }
 
 /**
  * Create a care booking request and get/create conversation.
  * Returns bookingId and conversationId.
+ * 
+ * Overlap rules (normalized):
+ * - Start date is inclusive (startAt <= existing.endAt)
+ * - End date is inclusive (endAt >= existing.startAt)
+ * - All dates stored and compared in UTC
+ * - Overlap check: startAt <= existing.endAt && endAt >= existing.startAt
  */
 export async function createCareBooking(input: CreateCareBookingInput) {
+  // Normalize dates to UTC for consistent comparison
+  const startAtUtc = new Date(input.startAt.toISOString());
+  const endAtUtc = new Date(input.endAt.toISOString());
+
+  // Idempotency check: if idempotencyKey provided and booking exists, return existing
+  if (input.idempotencyKey) {
+    const existing = await prisma.careBooking.findUnique({
+      where: { idempotencyKey: input.idempotencyKey },
+    });
+    if (existing) {
+      const conversation = await prisma.conversation.findFirst({
+        where: { careBookingId: existing.id },
+      });
+      return {
+        bookingId: existing.id,
+        conversationId: conversation?.id ?? "",
+      };
+    }
+  }
+
   // Verify caregiver exists
   const caregiver = await prisma.user.findUnique({
     where: { id: input.caregiverId, isCaregiver: true },
@@ -206,17 +241,35 @@ export async function createCareBooking(input: CreateCareBookingInput) {
     throw new Error("Caregiver not found");
   }
 
+  // Availability check: look for overlapping REQUESTED or ACCEPTED bookings
+  // Overlap: startAt <= existing.endAt && endAt >= existing.startAt (inclusive boundaries)
+  const overlapping = await prisma.careBooking.findFirst({
+    where: {
+      caregiverId: input.caregiverId,
+      status: { in: ["REQUESTED", "ACCEPTED"] },
+      AND: [
+        { startAt: { lte: endAtUtc } },
+        { endAt: { gte: startAtUtc } },
+      ],
+    },
+  });
+
+  if (overlapping) {
+    throw new Error("CAREGIVER_UNAVAILABLE");
+  }
+
   // Create booking
   const booking = await prisma.careBooking.create({
     data: {
       careSeekerId: input.seekerId,
       caregiverId: input.caregiverId,
-      startAt: input.startAt,
-      endAt: input.endAt,
+      startAt: startAtUtc,
+      endAt: endAtUtc,
       locationZip: input.locationZip,
       notes: input.notes,
       species: input.species,
       serviceType: input.serviceType,
+      idempotencyKey: input.idempotencyKey ?? null,
       status: "REQUESTED",
     },
   });
@@ -226,6 +279,16 @@ export async function createCareBooking(input: CreateCareBookingInput) {
     userAId: input.seekerId,
     userBId: input.caregiverId,
     careBookingId: booking.id,
+  });
+
+  // Notify caregiver
+  const { createNotification } = await import("@/lib/notify/notify");
+  await createNotification({
+    userId: input.caregiverId,
+    type: "BOOKING_REQUESTED",
+    title: "New booking request",
+    body: `You have a new booking request.`,
+    link: `/dashboard/care-bookings`,
   });
 
   return {
@@ -273,20 +336,45 @@ export async function updateCareBookingStatus(input: UpdateCareBookingStatusInpu
     }
   }
 
+  // Cancellation rules: either party can cancel REQUESTED or ACCEPTED before start date
   if (input.newStatus === "CANCELED") {
-    if (!isSeeker) {
-      throw new Error("Only seeker can cancel");
+    if (!isSeeker && !isCaregiver) {
+      throw new Error("Only seeker or caregiver can cancel");
     }
     if (booking.status === "COMPLETED" || booking.status === "DECLINED") {
       throw new Error("Cannot cancel completed or declined bookings");
     }
+    const now = new Date();
+    if (now >= booking.startAt) {
+      throw new Error("Cannot cancel bookings after start date");
+    }
   }
 
-  // Update status
-  return prisma.careBooking.update({
+  const updated = await prisma.careBooking.update({
     where: { id: input.bookingId },
     data: { status: input.newStatus },
+    include: {
+      careSeeker: { select: { id: true, name: true } },
+      caregiver: { select: { id: true, name: true } },
+    },
   });
+
+  // Notify seeker when caregiver accepts or declines
+  if ((input.newStatus === "ACCEPTED" || input.newStatus === "DECLINED") && updated.careSeekerId) {
+    const { createNotification } = await import("@/lib/notify/notify");
+    await createNotification({
+      userId: updated.careSeekerId,
+      type: input.newStatus === "ACCEPTED" ? "BOOKING_ACCEPTED" : "BOOKING_DECLINED",
+      title: input.newStatus === "ACCEPTED" ? "Booking accepted" : "Booking declined",
+      body:
+        input.newStatus === "ACCEPTED"
+          ? `${updated.caregiver.name || "The helper"} accepted your booking request.`
+          : `${updated.caregiver.name || "The helper"} declined your booking request.`,
+      link: `/dashboard/care-bookings`,
+    });
+  }
+
+  return updated;
 }
 
 /**
@@ -302,6 +390,26 @@ export async function getOrCreateBookingConversation(input: {
     userBId: input.caregiverId,
     careBookingId: input.bookingId,
   });
+}
+
+/**
+ * Get single booking by id; returns null if not found or user is not participant/admin.
+ */
+export async function getBookingByIdForUser(
+  bookingId: string,
+  userId: string,
+  isAdmin: boolean
+) {
+  const booking = await prisma.careBooking.findUnique({
+    where: { id: bookingId },
+    include: {
+      careSeeker: { select: { id: true, name: true, zipCode: true } },
+      caregiver: { select: { id: true, name: true, zipCode: true } },
+    },
+  });
+  if (!booking) return null;
+  if (isAdmin || booking.careSeekerId === userId || booking.caregiverId === userId) return booking;
+  return null;
 }
 
 /**

@@ -17,7 +17,7 @@ Auth is **provider-driven**: when Clerk env vars are set, Clerk handles UI and s
 
 | Config   | What renders                    | On submit / after sign-in |
 |----------|----------------------------------|----------------------------|
-| **Clerk** | `<SignIn />` (Clerk component)  | Clerk signs in → redirect to **`afterSignInUrl="/dashboard"`**. Sign-up link goes to `/auth/signup`. |
+| **Clerk** | `<SignIn />` (Clerk component)  | Clerk signs in → redirect to **`afterSignInUrl`** (e.g. `/auth/onboarding?from=login` or with `next=` for deep link). Sign-up link goes to `/auth/signup`. |
 | **Dev**   | `<AuthForm mode="sign-in" />`   | User picks **one role**: BUYER, PRODUCER, or ADMIN (radio). Form submits to **`POST /api/auth/dev-login`** with `{ role }`. |
 
 ### Dev sign-in detail
@@ -32,6 +32,13 @@ Auth is **provider-driven**: when Clerk env vars are set, Clerk handles UI and s
 3. **Client:** On success, `router.push(data.redirect)` → **`/auth/onboarding`** (or `/dashboard` if no redirect in body; current API always returns redirect to onboarding).
 
 So: **Dev sign-in → /api/auth/dev-login → set __dev_user → redirect to /auth/onboarding.**
+
+### Dev auth (no Clerk)
+
+- **Login:** `/auth/login` uses the dev role stub (**POST /api/auth/dev-login**). There are no passwords and no password reset flow in dev.
+- **Password reset:** Available only when Clerk is enabled (staging/prod).
+- **Testing redirects:** Use `/auth/login?next=/dashboard/orders` to verify `next=` behavior and post-login routing.
+- **Reset onboarding (dev-only):** Use **POST /api/dev/reset-onboarding** to clear `termsAcceptedAt` and `onboardingCompletedAt` and re-test onboarding. Optional body: `{ "clearZip": true }` to also clear ZIP.
 
 ---
 
@@ -100,6 +107,31 @@ Flow: **Onboarding page → OnboardingClient → POST /api/auth/onboarding → s
 
 ---
 
+## 5a. Password reset (Clerk only)
+
+When Clerk is configured, the `<SignIn />` UI shows a **“Forgot password?”** link. Clerk handles:
+
+- Email/identity verification
+- Sending the reset email or code
+- Setting a new password and signing the user back in
+- Redirecting back to your app using the same **afterSignInUrl** flow (onboarding + `next=`)
+
+**You do not need a custom reset system in production.** Dev mode uses the role-picker stub (no passwords), so “forgot password” does not apply there.
+
+**Testing:** Password reset must be tested in **staging or production** with Clerk enabled and a real inbox. Use `/auth/login?next=/dashboard/orders` (or another safe path) and confirm after reset the user lands on the intended page.
+
+---
+
+## 5b. Clerk production checklist
+
+Before going live, verify in the **Clerk Dashboard**:
+
+- **Email delivery:** Configure → Email (or Email, SMS). Set delivery method (Clerk SMTP or your provider). Ensure production domain is allowed and reset emails return to your app domain.
+- **Redirect allowlist:** Include your app origin and paths: e.g. `https://<your-domain>/auth/login`, `https://<your-domain>/auth/onboarding`, `https://<your-domain>/auth/signup`. This ensures post–sign-in and post–reset flows return to your app.
+- **Application URL:** Set to your production origin (e.g. `https://thelocalyield.com`) so Clerk redirects back to your app after reset/sign-in.
+
+---
+
 ## 6. Sign-out flow
 
 - **Clerk:** `<SignOutButton />` uses Clerk’s `signOut({ redirectUrl: "/" })`.
@@ -119,7 +151,7 @@ Flow: **Onboarding page → OnboardingClient → POST /api/auth/onboarding → s
 
 | Path                 | Clerk config | Result |
 |----------------------|-------------|--------|
-| `/auth/login`        | Clerk       | Clerk SignIn → after sign-in → `/dashboard` |
+| `/auth/login`        | Clerk       | Clerk SignIn → after sign-in → `/auth/onboarding` (or `next=`); forgot password via Clerk. |
 | `/auth/login`        | Dev         | AuthForm (sign-in) → POST dev-login → set __dev_user → redirect `/auth/onboarding` |
 | `/auth/signup`       | Clerk       | Clerk SignUp → after sign-up → `/auth/onboarding` |
 | `/auth/signup`       | Dev         | AuthForm (sign-up) → POST dev-signup → set __dev_user_id + __dev_user → redirect `/auth/onboarding` |

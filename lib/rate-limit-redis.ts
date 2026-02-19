@@ -33,12 +33,14 @@ export function getIdentifier(request: Request): string {
 /**
  * Check rate limit using Redis. Key = `${ip}:${presetName}:${windowStart}`.
  * Increment atomically; set TTL to windowMs. Returns 429 Response if over limit.
+ * @param requestId - Request ID to include in rate limit error responses
  */
 export async function checkRateLimitRedis(
   request: Request,
   options: RateLimitOptions,
   windowMs: number,
-  max: number
+  max: number,
+  requestId?: string
 ): Promise<Response | null> {
   const redis = new Redis({
     url: process.env.UPSTASH_REDIS_REST_URL!,
@@ -55,7 +57,11 @@ export async function checkRateLimitRedis(
   await redis.pexpire(key, windowMs);
 
   if (count > max) {
-    return fail("Too many requests", "RATE_LIMIT", 429);
+    return fail("Too many requests. Please try again in a moment.", {
+      code: "RATE_LIMIT",
+      status: 429,
+      requestId,
+    });
   }
 
   return null;

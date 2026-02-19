@@ -12,10 +12,11 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { CartLink } from "@/components/CartLink";
 import { SignOutButton } from "@/components/SignOutButton";
-import { getUserCapabilities } from "@/lib/authz";
+import { NotificationBell } from "@/components/NotificationBell";
+import { getUserCapabilities } from "@/lib/authz/client";
 import { isAppArea } from "@/lib/nav-routes";
 import { apiPatch } from "@/lib/client/api-client";
-import type { SessionUser } from "@/lib/auth";
+import type { SessionUser } from "@/lib/auth/types";
 
 interface NavbarProps {
   user: SessionUser | null;
@@ -23,6 +24,7 @@ interface NavbarProps {
 
 export function Navbar({ user }: NavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const pathname = usePathname();
   const caps = getUserCapabilities(user);
   const inApp = isAppArea(pathname);
@@ -49,47 +51,10 @@ export function Navbar({ user }: NavbarProps) {
           <span className="sm:hidden">Local Yield</span>
         </Link>
 
-        {/* Mode Switcher (when user has multiple roles) */}
-        {showModeSwitcher && (
-          <div className="hidden md:flex items-center gap-1 rounded-lg border border-brand/20 bg-brand-light/30 p-1">
-            <Link
-              href="/market"
-              onClick={() => setPrimaryMode("MARKET")}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-                pathname.startsWith("/market") ? "bg-white text-brand shadow-sm" : "text-brand/80 hover:text-brand"
-              }`}
-            >
-              Market
-            </Link>
-            {caps.canSell && (
-              <Link
-                href="/dashboard"
-                onClick={() => setPrimaryMode("SELL")}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-                  pathname.startsWith("/dashboard") ? "bg-white text-brand shadow-sm" : "text-brand/80 hover:text-brand"
-                }`}
-              >
-                Sell
-              </Link>
-            )}
-            {caps.canCare && (
-              <Link
-                href="/care"
-                onClick={() => setPrimaryMode("CARE")}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-                  pathname.startsWith("/care") ? "bg-white text-brand shadow-sm" : "text-brand/80 hover:text-brand"
-                }`}
-              >
-                Care
-              </Link>
-            )}
-          </div>
-        )}
-
         {/* Desktop nav: public primary actions — Browse, Care, About, Cart */}
         {showMarketNav && (
           <div className="hidden md:flex items-center gap-5">
-            <Link href="/market/browse" className="font-medium text-brand hover:text-brand-accent">
+            <Link href="/market" className="font-medium text-brand hover:text-brand-accent">
               Browse
             </Link>
             <Link
@@ -105,7 +70,7 @@ export function Navbar({ user }: NavbarProps) {
           </div>
         )}
         
-        {/* Desktop nav: account */}
+        {/* Desktop nav: account — dropdown when logged in (Switch mode only when isMultiMode) */}
         <div className="hidden md:flex items-center gap-4">
           {!user ? (
             <>
@@ -118,16 +83,38 @@ export function Navbar({ user }: NavbarProps) {
             </>
           ) : (
             <>
-              {caps.canAdmin ? (
-                <Link href="/admin" className="text-brand/80 hover:text-brand-accent">
-                  Admin
-                </Link>
-              ) : (
-                <Link href="/dashboard" className="text-brand/80 hover:text-brand-accent">
-                  Dashboard
-                </Link>
-              )}
-              <SignOutButton />
+              <NotificationBell />
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setAccountMenuOpen(!accountMenuOpen)}
+                  className="rounded-lg border border-brand/20 bg-white px-3 py-2 text-sm font-medium text-brand hover:bg-brand-light/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent focus-visible:ring-offset-2"
+                  aria-expanded={accountMenuOpen}
+                  aria-haspopup="true"
+                >
+                  Account
+                </button>
+                {accountMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" aria-hidden onClick={() => setAccountMenuOpen(false)} />
+                    <div className="absolute right-0 top-full z-50 mt-1 w-52 rounded-xl border border-brand/20 bg-white py-2 shadow-farmhouse">
+                      {showModeSwitcher && (
+                        <div className="border-b border-brand/10 px-3 pb-2 mb-2">
+                          <p className="text-xs font-medium text-brand/70 px-2 py-1">Switch mode</p>
+                          <Link href="/market" onClick={() => { setPrimaryMode("MARKET"); setAccountMenuOpen(false); }} className="block rounded-md px-3 py-1.5 text-sm text-brand hover:bg-brand-light/50">Market</Link>
+                          {caps.canSell && <Link href="/dashboard" onClick={() => { setPrimaryMode("SELL"); setAccountMenuOpen(false); }} className="block rounded-md px-3 py-1.5 text-sm text-brand hover:bg-brand-light/50">Sell</Link>}
+                          {caps.canCare && <Link href="/care" onClick={() => { setPrimaryMode("CARE"); setAccountMenuOpen(false); }} className="block rounded-md px-3 py-1.5 text-sm text-brand hover:bg-brand-light/50">Care</Link>}
+                        </div>
+                      )}
+                      <Link href="/dashboard/profile" onClick={() => setAccountMenuOpen(false)} className="block px-4 py-2 text-sm text-brand hover:bg-brand-light/50">Profile</Link>
+                      {caps.canAdmin && <Link href="/admin" onClick={() => setAccountMenuOpen(false)} className="block px-4 py-2 text-sm text-brand hover:bg-brand-light/50">Admin</Link>}
+                      <div className="border-t border-brand/10 mt-2 pt-2" onClick={() => setAccountMenuOpen(false)}>
+                        <SignOutButton />
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </>
           )}
         </div>
@@ -184,7 +171,7 @@ export function Navbar({ user }: NavbarProps) {
             {showMarketNav && (
               <>
                 <Link
-                  href="/market/browse"
+                  href="/market"
                   className="block font-medium text-brand hover:text-brand-accent"
                   onClick={() => setMobileMenuOpen(false)}
                 >

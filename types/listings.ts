@@ -21,10 +21,18 @@ export interface BrowseListing {
   distance: number | null;
   /** Within radius = nearby, else fartherOut. */
   label: ListingLabel;
+  /** Featured placement in discovery. */
+  featured?: boolean;
+  /** Average rating (1–5) for producer; null if no reviews. */
+  averageRating?: number | null;
 }
 
 export interface ListingsResponse {
   listings: BrowseListing[];
+  items?: BrowseListing[];
   userZip: string | null;
   radiusMiles: number;
+  total?: number;
+  page?: number;
+  pageSize?: number;
 }

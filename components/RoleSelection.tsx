@@ -1,18 +1,19 @@
 "use client";
 
 /**
- * Role selection for sign-up: multi-select with clear descriptions.
- * Buyer, Producer, Caregiver, Care Seeker. Admin is never offered during sign-up.
+ * Role selection for sign-up: multi-select. Buyer is always on (not shown).
+ * "What else would you like to do?" — Sell, Offer help, Find help. Admin is never offered.
  */
 
+/** Roles offered at signup (Buyer is default for everyone, not selectable). */
 export const SIGNUP_ROLES = [
-  { id: "BUYER" as const, label: "Buyer", description: "Shop local goods." },
-  { id: "PRODUCER" as const, label: "Producer", description: "Sell products." },
-  { id: "CAREGIVER" as const, label: "Caregiver", description: "Offer animal care." },
-  { id: "CARE_SEEKER" as const, label: "Care Seeker", description: "Hire animal care." },
+  { id: "PRODUCER" as const, label: "Sell goods", description: "Sell products from your shop." },
+  { id: "CAREGIVER" as const, label: "Offer help / services", description: "Offer animal care or homestead help." },
+  { id: "CARE_SEEKER" as const, label: "Find help on my property", description: "Post jobs for animal care or homestead work." },
 ] as const;
 
-export type SignUpRoleId = (typeof SIGNUP_ROLES)[number]["id"];
+/** All signup role ids including BUYER (for APIs that accept full set). */
+export type SignUpRoleId = (typeof SIGNUP_ROLES)[number]["id"] | "BUYER";
 
 export interface RoleSelectionProps {
   value: SignUpRoleId[];
@@ -25,9 +26,9 @@ export function RoleSelection({
   value,
   onChange,
   className = "",
-  "aria-label": ariaLabel = "Choose your roles",
+  "aria-label": ariaLabel = "What else would you like to do?",
 }: RoleSelectionProps) {
-  function toggle(roleId: SignUpRoleId) {
+  function toggle(roleId: (typeof SIGNUP_ROLES)[number]["id"]) {
     const next = value.includes(roleId)
       ? value.filter((r) => r !== roleId)
       : [...value, roleId];
@@ -37,7 +38,7 @@ export function RoleSelection({
   return (
     <div className={className} role="group" aria-label={ariaLabel}>
       <p className="mb-2 block text-sm font-medium text-brand">
-        Select your roles
+        What else would you like to do?
       </p>
       <div className="space-y-3">
         {SIGNUP_ROLES.map((role) => (
@@ -60,7 +61,7 @@ export function RoleSelection({
           </label>
         ))}
       </div>
-      <p className="mt-2 text-xs text-brand/70">Select all that apply. You can change this later.</p>
+      <p className="mt-2 text-xs text-brand/70">You can add these later in Settings.</p>
     </div>
   );
 }

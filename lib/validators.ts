@@ -3,6 +3,8 @@
  */
 
 import { z } from "zod";
+import { MAX_RADIUS_MILES } from "@/lib/geo/constants";
+import { ALLOWED_CATEGORY_IDS } from "@/lib/catalog-categories";
 
 /**
  * 5-digit ZIP code validation
@@ -31,6 +33,8 @@ export const CreateOrderSchema = z.object({
     if (val instanceof Date) return val;
     return new Date(val);
   }),
+  appliedCreditCents: z.number().int().min(0).optional(),
+  idempotencyKey: z.string().min(1).optional(),
 });
 
 /**
@@ -64,8 +68,10 @@ export const SignupSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
   email: z.string().email("Valid email required"),
   phone: z.string().trim().min(1, "Phone is required"),
-  zipCode: ZipSchema,
-  roles: z.array(SignUpRoleSchema).min(1, "Select at least one role"),
+  /** Optional; when missing store null. Only require when feature needs it (browse, post job, seller pickup). */
+  zipCode: z.union([ZipSchema, z.literal("")]).optional(),
+  /** Buyer is always on; form sends only "what else" (PRODUCER, CAREGIVER, CARE_SEEKER). Empty = Buyer only. */
+  roles: z.array(SignUpRoleSchema).default([]),
   primaryMode: PrimaryModeSchema,
   addressLine1: z.string().trim().optional().or(z.literal("")),
   city: z.string().trim().optional().or(z.literal("")),
@@ -73,14 +79,19 @@ export const SignupSchema = z.object({
 });
 
 /**
- * Onboarding request validation
+ * Onboarding request validation. Only hard-require terms; ZIP can be skipped (gentle prompt later).
  */
 export const OnboardingSchema = z.object({
-  zipCode: ZipSchema,
+  /** Must be true to complete onboarding (stops redirect loops). */
+  termsAccepted: z.literal(true),
+  /** 5-digit ZIP; optional to allow "skip for now" (show gentle banner later). */
+  zipCode: z.union([ZipSchema, z.literal("")]).optional(),
   /** Optional: set role flags on first onboarding (never includes ADMIN). */
   roles: z.array(SignUpRoleSchema).optional(),
-  /** Primary mode for first landing. */
+  /** Primary mode for first landing (preference only; routing uses lastActiveMode). */
   primaryMode: PrimaryModeSchema.optional(),
+  /** Optional: safe internal path for post-onboarding redirect (next=). Validated in redirect logic. */
+  requestedUrl: z.string().optional(),
 });
 
 /**
@@ -90,10 +101,11 @@ export const OnboardingSchema = z.object({
 export const AccountUpdateSchema = z.object({
   name: z.string().trim().max(200, "Name is too long").optional(),
   phone: z.string().trim().min(1, "Phone is required").max(50, "Phone is too long").optional(),
-  zipCode: ZipSchema.optional(),
+  zipCode: z.union([ZipSchema, z.literal("")]).optional(),
   addressLine1: z.string().trim().max(200, "Address line is too long").optional(),
   city: z.string().trim().max(100, "City is too long").optional(),
   state: z.string().trim().max(50, "State is too long").optional(),
+  allowProducerExport: z.boolean().optional(),
 });
 
 /**
@@ -188,6 +200,18 @@ export const CareBookingStatusSchema = z.enum([
   "COMPLETED",
 ]);
 
+export const HelpExchangeCategorySchema = z.enum([
+  "FENCE_REPAIRS",
+  "GARDEN_HARVEST",
+  "EQUIPMENT_HELP",
+]);
+
+export const HelpExchangeStatusSchema = z.enum([
+  "OPEN",
+  "FILLED",
+  "CLOSED",
+]);
+
 /**
  * Create care booking request validation
  */
@@ -199,12 +223,31 @@ export const CreateCareBookingSchema = z.object({
   notes: z.string().trim().optional(),
   species: AnimalSpeciesSchema.optional(),
   serviceType: CareServiceTypeSchema.optional(),
+  idempotencyKey: z.string().min(1).optional(), /// Prevents double-click double-booking
 }).refine((data) => {
   const start = new Date(data.startAt);
   const end = new Date(data.endAt);
   return end > start;
 }, {
   message: "End date must be after start date",
+  path: ["endAt"],
+}).refine((data) => {
+  const start = new Date(data.startAt);
+  const now = new Date();
+  // Allow same-day bookings (start can be today)
+  return start >= new Date(now.setHours(0, 0, 0, 0));
+}, {
+  message: "Start date must be today or in the future",
+  path: ["startAt"],
+}).refine((data) => {
+  const start = new Date(data.startAt);
+  const end = new Date(data.endAt);
+  const maxDurationDays = 90;
+  const durationMs = end.getTime() - start.getTime();
+  const durationDays = durationMs / (1000 * 60 * 60 * 24);
+  return durationDays <= maxDurationDays;
+}, {
+  message: `Booking duration cannot exceed ${90} days`,
   path: ["endAt"],
 });
 
@@ -213,6 +256,17 @@ export const CreateCareBookingSchema = z.object({
  */
 export const UpdateCareBookingStatusSchema = z.object({
   status: CareBookingStatusSchema,
+});
+
+/**
+ * Create help exchange posting validation
+ */
+export const CreateHelpExchangePostingSchema = z.object({
+  title: z.string().min(1, "Title required").max(200, "Title too long"),
+  description: z.string().min(1, "Description required").max(2000, "Description too long"),
+  category: HelpExchangeCategorySchema,
+  zipCode: ZipSchema,
+  radiusMiles: z.number().int().min(1).max(MAX_RADIUS_MILES).optional(),
 });
 
 /**
@@ -225,7 +279,7 @@ export const CreateCareServiceListingSchema = z.object({
   tasksSupported: z.array(CareTaskTypeSchema).min(1, "Select at least one task"),
   rateCents: z.number().int().min(0, "Rate must be non-negative"),
   rateUnit: z.string().trim().min(1, "Rate unit is required").max(50, "Rate unit too long"),
-  serviceRadiusMiles: z.number().int().min(1, "Service radius must be at least 1 mile").max(100, "Service radius too large"),
+  serviceRadiusMiles: z.number().int().min(1, "Service radius must be at least 1 mile").max(MAX_RADIUS_MILES, "Service radius cannot exceed 150 miles"),
   description: z.string().trim().max(2000, "Description too long").optional(),
   active: z.boolean().optional().default(true),
 });
@@ -243,4 +297,137 @@ export const UpdateCaregiverProfileSchema = z.object({
   introAudioUrl: z.string().url("Valid audio URL required").optional().or(z.null()),
   referencesText: z.string().trim().max(2000, "References text too long").optional().or(z.null()),
   languagesSpoken: z.string().trim().max(200, "Languages text too long").optional().or(z.null()),
+});
+
+/**
+ * Query parameter validation schemas for GET endpoints
+ */
+
+/** Max pageSize for public list endpoints. */
+const PAGE_SIZE_MAX_PUBLIC = 50;
+/** Max pageSize for admin list endpoints. */
+const PAGE_SIZE_MAX_ADMIN = 100;
+
+/**
+ * Listings query validation (GET /api/listings)
+ */
+export const ListingsQuerySchema = z.object({
+  zip: ZipSchema.optional().or(z.literal("")),
+  radius: z.coerce.number().int().min(1, "Radius must be at least 1 mile").max(MAX_RADIUS_MILES, `Radius cannot exceed ${MAX_RADIUS_MILES} miles`).optional(),
+  q: z.string().trim().max(200, "Search query too long").optional(),
+  group: z.string().trim().max(100).optional(),
+  category: z.string().trim().max(100).optional(),
+  sort: z.enum(["distance", "newest", "price_asc", "rating"]).optional(),
+  page: z.coerce.number().int().min(1, "Page must be at least 1").optional(),
+  pageSize: z.coerce.number().int().min(1).max(PAGE_SIZE_MAX_PUBLIC, `Page size cannot exceed ${PAGE_SIZE_MAX_PUBLIC}`).optional(),
+});
+
+/** Product category must be one of the allowed subcategory IDs (for create/update). */
+export const ProductCategorySchema = z.string().trim().min(1).refine(
+  (val) => (ALLOWED_CATEGORY_IDS as readonly string[]).includes(val),
+  { message: "Category must be one of the allowed category IDs" }
+);
+
+/**
+ * Caregivers query validation (GET /api/care/caregivers)
+ */
+export const CaregiversQuerySchema = z.object({
+  zip: ZipSchema,
+  radius: z.coerce.number().int().min(1, "Radius must be at least 1 mile").max(MAX_RADIUS_MILES, `Radius cannot exceed ${MAX_RADIUS_MILES} miles`).optional(),
+  species: AnimalSpeciesSchema.optional(),
+  serviceType: CareServiceTypeSchema.optional(),
+  category: z.string().trim().max(100).optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  pageSize: z.coerce.number().int().min(1).max(PAGE_SIZE_MAX_PUBLIC).optional(),
+});
+
+/**
+ * Item requests query validation (GET /api/item-requests)
+ */
+export const ItemRequestsQuerySchema = z.object({
+  zip: ZipSchema,
+  radius: z.coerce.number().int().min(1, "Radius must be at least 1 mile").max(MAX_RADIUS_MILES, `Radius cannot exceed ${MAX_RADIUS_MILES} miles`).optional(),
+});
+
+/** Order dispute problem types (for reports entityType=order) */
+export const OrderDisputeProblemTypeSchema = z.enum([
+  "LATE", "DAMAGED", "MISSING", "NOT_AS_DESCRIBED", "WRONG_ITEM", "OTHER",
+]);
+
+/** Order dispute proposed outcomes */
+export const OrderDisputeProposedOutcomeSchema = z.enum([
+  "REFUND", "PARTIAL_REFUND", "REPLACEMENT", "STORE_CREDIT", "OTHER",
+]);
+
+/** Report attachment (URL + metadata; max 3 per report) */
+export const ReportAttachmentSchema = z.object({
+  url: z.string().url(),
+  mimeType: z.string().min(1),
+  sizeBytes: z.number().int().min(0),
+});
+
+/**
+ * Reports query validation (GET /api/reports - admin or mine/forMe)
+ */
+export const ReportsQuerySchema = z.object({
+  status: z.enum(["PENDING", "REVIEWED", "RESOLVED", "DISMISSED"]).optional(),
+  entityType: z.enum(["caregiver", "help_exchange_posting", "order"]).optional(),
+  mine: z.string().optional(),
+  forMe: z.string().optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  pageSize: z.coerce.number().int().min(1).max(PAGE_SIZE_MAX_ADMIN).optional(),
+});
+
+/**
+ * Dashboard conversations query validation (GET /api/dashboard/conversations)
+ */
+export const ConversationsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).optional(),
+  pageSize: z.coerce.number().int().min(1).max(PAGE_SIZE_MAX_PUBLIC).optional(),
+});
+
+/** Send message body (POST /api/dashboard/conversations/[id]/messages) */
+export const SendMessageSchema = z.object({
+  body: z.string().trim().min(1, "Message cannot be empty").max(10000, "Message too long"),
+});
+
+/**
+ * Admin users query validation (GET /api/admin/users)
+ */
+export const AdminUsersQuerySchema = z.object({
+  q: z.string().trim().max(200, "Search query too long").optional(),
+  role: z.string().trim().max(50).optional(),
+  capability: z.string().trim().max(50).optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  pageSize: z.coerce.number().int().min(1).max(PAGE_SIZE_MAX_ADMIN).optional(),
+});
+
+/**
+ * Admin listings query validation (GET /api/admin/listings)
+ */
+export const AdminListingsQuerySchema = z.object({
+  type: z.enum(["market", "care"]).optional(),
+  active: z.coerce.boolean().optional(),
+  q: z.string().trim().max(200, "Search query too long").optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  pageSize: z.coerce.number().int().min(1).max(PAGE_SIZE_MAX_ADMIN).optional(),
+});
+
+/**
+ * Admin bookings query validation (GET /api/admin/bookings)
+ */
+export const AdminBookingsQuerySchema = z.object({
+  status: CareBookingStatusSchema.optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  pageSize: z.coerce.number().int().min(1).max(PAGE_SIZE_MAX_ADMIN).optional(),
+});
+
+/**
+ * Admin custom categories query validation (GET /api/admin/custom-categories)
+ */
+export const AdminCustomCategoriesQuerySchema = z.object({
+  status: z.enum(["PENDING", "APPROVED"]).optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(5).max(50, "Limit cannot exceed 50").optional(),
+  search: z.string().trim().max(200, "Search query too long").optional(),
 });

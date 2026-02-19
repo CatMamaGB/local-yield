@@ -331,7 +331,7 @@ export default async function DashboardPage() {
               Open item requests from buyers within 25 mi of your ZIP. See what people are looking for.
             </p>
             <div className="mt-4">
-              <DemandNearYou producerZip={user.zipCode} radiusMiles={25} />
+              <DemandNearYou producerZip={user.zipCode ?? ""} radiusMiles={25} />
             </div>
           </div>
         </section>

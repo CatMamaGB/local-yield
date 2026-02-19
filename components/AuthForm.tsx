@@ -15,16 +15,18 @@ type DevRole = "BUYER" | "PRODUCER" | "ADMIN";
 
 export interface AuthFormProps {
   mode: Mode;
+  /** Safe internal path for post-login redirect (e.g. from next=). */
+  requestedUrl?: string | null;
 }
 
-export function AuthForm({ mode }: AuthFormProps) {
+export function AuthForm({ mode, requestedUrl }: AuthFormProps) {
   const router = useRouter();
   const [role, setRole] = useState<DevRole | null>(mode === "sign-up" ? null : "BUYER");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (mode === "sign-up") {
-    return <SignupForm />;
+    return <SignupForm requestedUrl={requestedUrl} />;
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -33,7 +35,10 @@ export function AuthForm({ mode }: AuthFormProps) {
     setError(null);
     try {
       const r = role ?? "BUYER";
-      const data = await apiPost<{ redirect?: string }>("/api/auth/dev-login", { role: r });
+      const url = requestedUrl
+        ? `/api/auth/dev-login?next=${encodeURIComponent(requestedUrl)}`
+        : "/api/auth/dev-login";
+      const data = await apiPost<{ redirect?: string }>(url, { role: r });
       if (data?.redirect) {
         router.push(data.redirect);
         router.refresh();
@@ -55,6 +60,9 @@ export function AuthForm({ mode }: AuthFormProps) {
       </h1>
       <p className="mt-2 text-sm text-brand/80 leading-relaxed">
         Choose a role to sign in (development mode).
+      </p>
+      <p className="mt-1 text-xs text-brand/60">
+        Password reset is available only when Clerk is enabled (staging/prod).
       </p>
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
         <div>
@@ -92,7 +100,7 @@ export function AuthForm({ mode }: AuthFormProps) {
         <Link href="/auth/signup" className="text-sm text-brand-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent focus-visible:ring-offset-2 rounded">
           Create an account
         </Link>
-        <Link href="/market/browse" className="text-sm text-brand/80 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent focus-visible:ring-offset-2 rounded">
+        <Link href="/market" className="text-sm text-brand/80 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent focus-visible:ring-offset-2 rounded">
           Browse without signing in
         </Link>
       </div>

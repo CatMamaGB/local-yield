@@ -22,6 +22,8 @@ export function CheckoutClient() {
   const [deliveryFeeCents, setDeliveryFeeCents] = useState(0);
   const [offersDelivery, setOffersDelivery] = useState(false);
   const [deliveryFeeError, setDeliveryFeeError] = useState<string | null>(null);
+  const [creditBalanceCents, setCreditBalanceCents] = useState(0);
+  const [applyCredit, setApplyCredit] = useState(true);
 
   useEffect(() => {
     if (!singleProducerId || items.length === 0) return;
@@ -44,6 +46,13 @@ export function CheckoutClient() {
     fetchDeliveryInfo();
   }, [singleProducerId, items.length]);
 
+  useEffect(() => {
+    if (!singleProducerId) return;
+    apiGet<{ balanceCents: number }>(`/api/credits/balance?producerId=${singleProducerId}`)
+      .then((res) => setCreditBalanceCents(res.balanceCents ?? 0))
+      .catch(() => setCreditBalanceCents(0));
+  }, [singleProducerId]);
+
   if (itemCount === 0) {
     return (
       <p className="mt-6 text-brand/70">
@@ -64,11 +73,16 @@ export function CheckoutClient() {
   const subtotalCents = items.reduce((sum, i) => sum + i.unitPriceCents * i.quantity, 0);
   const deliveryFee = fulfillmentType === "DELIVERY" ? deliveryFeeCents : 0;
   const totalCents = subtotalCents + deliveryFee;
+  const appliedCreditCents =
+    applyCredit && creditBalanceCents > 0 ? Math.min(creditBalanceCents, totalCents) : 0;
+  const payWithCardCents = totalCents - appliedCreditCents;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
+
+    const idempotencyKey = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `order-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
     try {
       const data = await apiPost<{ orderId: string; pickupCode?: string }>("/api/orders", {
@@ -80,6 +94,8 @@ export function CheckoutClient() {
         })),
         fulfillmentType,
         notes: notes.trim() || undefined,
+        appliedCreditCents: appliedCreditCents > 0 ? appliedCreditCents : undefined,
+        idempotencyKey,
       });
 
       if (data?.orderId) {
@@ -116,6 +132,17 @@ export function CheckoutClient() {
           placeholder="Pickup time preference, allergies, etc."
         />
       </div>
+      {creditBalanceCents > 0 && (
+        <label className="flex items-center gap-2 text-sm text-brand">
+          <input
+            type="checkbox"
+            checked={applyCredit}
+            onChange={(e) => setApplyCredit(e.target.checked)}
+            className="rounded border-brand/30"
+          />
+          Apply ${(Math.min(creditBalanceCents, totalCents) / 100).toFixed(2)} store credit from this producer
+        </label>
+      )}
       <div className="rounded-xl border border-brand/20 bg-white p-4">
         <p className="flex justify-between text-brand">
           <span>Subtotal</span>
@@ -127,9 +154,15 @@ export function CheckoutClient() {
             <span>{formatPrice(deliveryFeeCents / 100)}</span>
           </p>
         )}
+        {appliedCreditCents > 0 && (
+          <p className="mt-1 flex justify-between text-brand/80">
+            <span>Store credit applied</span>
+            <span>-{formatPrice(appliedCreditCents / 100)}</span>
+          </p>
+        )}
         <p className="mt-2 flex justify-between font-display font-semibold text-brand">
-          <span>Total</span>
-          <span>{formatPrice(totalCents / 100)}</span>
+          <span>{payWithCardCents === 0 ? "Total (credit)" : "Total"}</span>
+          <span>{formatPrice(payWithCardCents / 100)}</span>
         </p>
       </div>
       {deliveryFeeError && fulfillmentType === "DELIVERY" && (
@@ -143,7 +176,7 @@ export function CheckoutClient() {
         </InlineAlert>
       )}
       <p className="text-sm text-brand/70">
-        You’ll pay the producer at pickup or delivery (cash or as arranged).
+        This places an order request with the producer. No payment is taken online. You'll pay the producer at pickup or delivery (cash or as arranged).
       </p>
       <button
         type="submit"

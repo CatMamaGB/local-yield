@@ -16,19 +16,19 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const requestId = getRequestId(request);
-  const rateLimitRes = await checkRateLimit(request, RATE_LIMIT_PRESETS.MESSAGES);
+  const rateLimitRes = await checkRateLimit(request, RATE_LIMIT_PRESETS.MESSAGES, requestId);
   if (rateLimitRes) return rateLimitRes;
 
   try {
     const user = await requireProducerOrAdmin();
     const { id: reviewId } = await params;
-    if (!reviewId) return fail("Missing review id", "VALIDATION_ERROR", 400);
+    if (!reviewId) return fail("Missing review id", { code: "VALIDATION_ERROR", status: 400 });
 
     const review = await prisma.review.findUnique({
       where: { id: reviewId },
       select: { revieweeId: true, reviewerId: true, orderId: true },
     });
-    if (!review || review.revieweeId !== user.id) return fail("Review not found or you are not the producer.", "NOT_FOUND", 404);
+    if (!review || review.revieweeId !== user.id) return fail("Review not found or you are not the producer.", { code: "NOT_FOUND", status: 404 });
 
     const producerId = user.id;
     const buyerId = review.reviewerId;
@@ -61,7 +61,7 @@ export async function POST(
   } catch (e) {
     logError("dashboard/reviews/[id]/message/POST", e, { requestId, path: "/api/dashboard/reviews/[id]/message", method: "POST" });
     const message = e instanceof Error ? e.message : "";
-    if (message === "Forbidden") return fail(message, "FORBIDDEN", 403);
-    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
+    if (message === "Forbidden") return fail(message, { code: "FORBIDDEN", status: 403 });
+    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
   }
 }

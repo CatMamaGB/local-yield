@@ -19,7 +19,7 @@ export default async function DashboardCustomersPage() {
   }
 
   const customers = await getCustomersForProducer(user.id);
-  const csvContent = customersToCsv(customers);
+  const csvContent = customersToCsv(customers.filter((c) => c.allowProducerExport));
 
   return (
     <div className="min-h-screen bg-brand-light">

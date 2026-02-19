@@ -2,7 +2,7 @@
 
 Exact paths for thelocalyield.com. Deep links map 1:1 to these paths (PWA + mobile app).
 
-**Last updated:** 2026-02-12
+**Last updated:** 2026-02-18
 
 ---
 
@@ -19,19 +19,21 @@ Exact paths for thelocalyield.com. Deep links map 1:1 to these paths (PWA + mobi
 
 | Path | Purpose |
 |------|--------|
-| `/market` | Market hub: hero, search card, request-item form. |
-| `/market/browse` | Browse listings by ZIP/radius/search. |
+| `/market` | Market home (Care-style): hero + central search card (category, ZIP, radius, q). Links to browse. |
+| `/market/browse` | Browse listings: Products \| Producers view, group/category, sort, ZIP/radius/q. URL params: view, map, group, category, sort, zip, radius, q. |
 | `/market/shop/[id]` | Producer storefront (products, add to cart). |
 | `/market/cart` | Shopping cart. |
 | `/market/checkout` | Checkout (fulfillment, place order). |
 | `/market/order-confirmation/[orderId]` | Order confirmation. |
 
-### Care (feature-flagged: `NEXT_PUBLIC_ENABLE_CARE`)
+### Care
+
+Care is always available alongside Market.
 
 | Path | Purpose |
 |------|--------|
-| `/care` | Care hub: hero + search card. Redirects to `/market` if Care disabled. |
-| `/care/browse` | Browse caregivers (ZIP/radius/species/service). Redirects if Care disabled. |
+| `/care` | Care hub: hero + search card. |
+| `/care/browse` | Browse caregivers (ZIP/radius/species/service). |
 | `/care/caregiver/[id]` | Caregiver profile: trust signals, listings, reviews, booking form. |
 
 ---
@@ -40,9 +42,9 @@ Exact paths for thelocalyield.com. Deep links map 1:1 to these paths (PWA + mobi
 
 | Path | Purpose |
 |------|--------|
-| `/auth/login` | Sign in. |
-| `/auth/signup` | Sign up (with role picker). |
-| `/auth/onboarding` | Post-signup ZIP onboarding. Redirects if already onboarded. |
+| `/auth/login` | Sign in. Supports `?next=` for post-login redirect (validated safe path). |
+| `/auth/signup` | Sign up (Buyer always on; "what else" = Sell / Offer help / Find help). Supports `?next=` for post-signup → onboarding redirect. |
+| `/auth/onboarding` | Terms + optional ZIP + roles. Optional after terms; redirect uses lastActiveMode or `next=`. |
 | `/sign-in` | Redirects to `/auth/login`. |
 | `/sign-up` | Redirects to `/auth/signup`. |
 
@@ -64,7 +66,7 @@ Exact paths for thelocalyield.com. Deep links map 1:1 to these paths (PWA + mobi
 | `/dashboard/analytics` | Sales analytics: revenue, order count, avg order, sales history. |
 | `/dashboard/orders` | Orders list (buyer or producer view). |
 | `/dashboard/messages` | Conversations/messages. |
-| `/dashboard/profile` | Profile: account (name, contact, address) for all users; producer/care sections by role. |
+| `/dashboard/profile` | Profile: account + "Your modes" (add Seller/Helper/Hire without new account). |
 | `/dashboard/products` | Products CRUD. |
 | `/dashboard/events` | Events management. |
 | `/dashboard/reviews` | Reviews management (producer). |
@@ -76,8 +78,11 @@ Exact paths for thelocalyield.com. Deep links map 1:1 to these paths (PWA + mobi
 
 ## Admin (admin-only)
 
+Non-admins visiting `/admin/*` receive **403** (dev: middleware; prod: layout shows forbidden view). Admins can use both Dashboard and Admin.
+
 | Path | Purpose |
 |------|--------|
+| `/admin` | Admin home (redirects to reviews or overview). |
 | `/admin/users` | User management. |
 | `/admin/listings` | Listings management. |
 | `/admin/reviews` | Reviews moderation. |
@@ -93,8 +98,9 @@ Exact paths for thelocalyield.com. Deep links map 1:1 to these paths (PWA + mobi
 - `POST /api/auth/dev-login` — Dev stub login.
 - `POST /api/auth/dev-signup` — Dev stub signup.
 - `POST /api/auth/signup` — Signup with role.
-- `POST /api/auth/onboarding` — Set user ZIP (authenticated).
-- `PATCH /api/auth/primary-mode` — Set MARKET/SELL/CARE (authenticated).
+- `POST /api/auth/onboarding` — Terms + optional ZIP + roles; sets termsAcceptedAt, onboardingCompletedAt.
+- `PATCH /api/auth/primary-mode` — Set primary mode + __last_active_mode cookie (authenticated).
+- `POST /api/account/modes` — Add mode (SELL/HELPER/HIRE) idempotent; returns redirect, incompleteSteps, alreadyEnabled.
 - `POST /api/auth/sign-out` — Sign out.
 
 ### Market
@@ -157,5 +163,5 @@ Exact paths for thelocalyield.com. Deep links map 1:1 to these paths (PWA + mobi
 
 ## Mobile app
 
-- **Tabs:** Market | Orders | Messages | Profile (+ Care when `NEXT_PUBLIC_ENABLE_CARE=true`).
+- **Tabs:** Market | Orders | Messages | Profile | Care.
 - **Deep links:** Same paths as above (e.g. `thelocalyield.com/market/shop/123` opens app to that storefront when installed).

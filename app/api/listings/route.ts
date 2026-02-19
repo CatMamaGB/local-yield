@@ -1,18 +1,24 @@
 /**
- * GET /api/listings?zip=90210&radius=25&q=eggs
+ * GET /api/listings?zip=90210&radius=25&q=eggs&group=produce&category=fruits&sort=newest&page=1&pageSize=50
  * Returns listings with distance and label (nearby / fartherOut).
- * Sorted: nearby first, then fartherOut; each group by distance.
+ * Supports group/category filter, q search, sort (distance|newest|price_asc|rating), pagination + hard cap.
  */
 
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getDistanceBetweenZips } from "@/lib/geo";
+import { getCategoryIdsForGroup } from "@/lib/catalog-categories";
+import { getAggregateRatingsForReviewees } from "@/lib/reviews";
 import type { BrowseListing, ListingLabel } from "@/types/listings";
 import { ok, fail } from "@/lib/api";
 import { logError } from "@/lib/logger";
 import { getRequestId } from "@/lib/request-id";
+import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limit";
+import { ListingsQuerySchema } from "@/lib/validators";
 
 const DEFAULT_RADIUS = 25;
+const PAGE_SIZE_MAX = 50;
+const TOTAL_CAP = 500;
 
 /** Mock listings when DB is empty (for demo). */
 const MOCK_LISTINGS = [
@@ -24,17 +30,54 @@ const MOCK_LISTINGS = [
 
 export async function GET(request: NextRequest) {
   const requestId = getRequestId(request);
+  const rateLimitRes = await checkRateLimit(request, RATE_LIMIT_PRESETS.DEFAULT, requestId);
+  if (rateLimitRes) return rateLimitRes;
   try {
     const { searchParams } = new URL(request.url);
-    const zip = searchParams.get("zip")?.trim().slice(0, 5) || null;
-    const radiusMiles = Math.min(100, Math.max(1, Number(searchParams.get("radius")) || DEFAULT_RADIUS));
-    const q = searchParams.get("q")?.trim().toLowerCase() || "";
+    const queryParams = {
+      zip: searchParams.get("zip") || undefined,
+      radius: searchParams.get("radius") || undefined,
+      q: searchParams.get("q") || undefined,
+      group: searchParams.get("group") || undefined,
+      category: searchParams.get("category") || undefined,
+      sort: searchParams.get("sort") || undefined,
+      page: searchParams.get("page") || undefined,
+      pageSize: searchParams.get("pageSize") || undefined,
+    };
+    
+    const validation = ListingsQuerySchema.safeParse(queryParams);
+    if (!validation.success) {
+      const first = validation.error.issues[0];
+      return fail(first?.message ?? "Invalid query parameters", {
+        code: "VALIDATION_ERROR",
+        status: 400,
+        requestId,
+      });
+    }
+    
+    const zip = validation.data.zip && validation.data.zip !== "" ? validation.data.zip : null;
+    const radiusMiles = validation.data.radius ?? DEFAULT_RADIUS;
+    const q = validation.data.q?.toLowerCase().trim() || "";
+    const group = validation.data.group?.trim();
+    const category = validation.data.category?.trim();
+    const sortBy = validation.data.sort ?? "distance";
+    const page = validation.data.page ?? 1;
+    const pageSize = Math.min(PAGE_SIZE_MAX, validation.data.pageSize ?? PAGE_SIZE_MAX);
 
-    let rows: { id: string; title: string; description: string; price: number; imageUrl: string | null; stockImage: string | null; category: string; delivery: boolean; pickup: boolean; userId: string; user: { name: string | null; zipCode: string } }[];
+    type Row = { id: string; title: string; description: string; price: number; imageUrl: string | null; stockImage: string | null; category: string; delivery: boolean; pickup: boolean; userId: string; createdAt: Date; user: { name: string | null; zipCode: string }; featuredUntil: Date | null };
+    let rows: Row[];
 
     try {
       const products = await prisma.product.findMany({
-        include: { user: { select: { name: true, zipCode: true } } },
+        include: {
+          user: {
+            select: {
+              name: true,
+              zipCode: true,
+              producerProfile: { select: { featuredUntil: true } },
+            },
+          },
+        },
       });
       rows = products.map((p) => ({
         id: p.id,
@@ -47,7 +90,9 @@ export async function GET(request: NextRequest) {
         delivery: p.delivery,
         pickup: p.pickup,
         userId: p.userId,
+        createdAt: p.createdAt,
         user: { name: p.user.name, zipCode: p.user.zipCode },
+        featuredUntil: p.user.producerProfile?.featuredUntil ?? null,
       }));
     } catch {
       // DB not ready or empty: use mock data
@@ -62,28 +107,42 @@ export async function GET(request: NextRequest) {
         delivery: item.delivery,
         pickup: item.pickup,
         userId: `mock-user-${i}`,
+        createdAt: new Date(),
         user: { name: "Demo Producer", zipCode: item.zip },
+        featuredUntil: null,
       }));
     }
 
-    // Optional search filter
+    // Category filter: exact category, or group (subcategories in group)
+    let categoryFiltered = rows;
+    if (category) {
+      categoryFiltered = rows.filter((r) => r.category.toLowerCase() === category.toLowerCase());
+    } else if (group) {
+      const categoryIds = getCategoryIdsForGroup(group);
+      if (categoryIds.length > 0) {
+        const set = new Set(categoryIds.map((c) => c.toLowerCase()));
+        categoryFiltered = rows.filter((r) => set.has(r.category.toLowerCase()));
+      }
+    }
+
+    // Optional keyword search
     const filtered = q
-      ? rows.filter(
+      ? categoryFiltered.filter(
           (r) =>
             r.title.toLowerCase().includes(q) ||
             r.description.toLowerCase().includes(q) ||
             r.category.toLowerCase().includes(q)
         )
-      : rows;
+      : categoryFiltered;
 
-    // Add distance and label; sort nearby first, then fartherOut
-    const withDistance: BrowseListing[] = filtered.map((r) => {
+    const now = new Date();
+    const withDistance: (BrowseListing & { createdAt: Date })[] = filtered.map((r) => {
       const listingZip = r.user.zipCode;
       const distance =
         zip && listingZip ? getDistanceBetweenZips(zip, listingZip) : null;
-      const withinRadius =
-        distance != null && distance <= radiusMiles;
-      const label: ListingLabel = withinRadius ? "nearby" : "fartherOut";
+      const label: ListingLabel =
+        distance == null ? "nearby" : distance <= radiusMiles ? "nearby" : "fartherOut";
+      const featured = !!(r.featuredUntil && r.featuredUntil >= now);
       return {
         id: r.id,
         title: r.title,
@@ -99,25 +158,62 @@ export async function GET(request: NextRequest) {
         zip: listingZip,
         distance,
         label,
+        featured,
+        createdAt: r.createdAt,
       };
     });
 
-    const sorted = [...withDistance].sort((a, b) => {
-      // Nearby first
+    const producerIds = [...new Set(withDistance.map((r) => r.producerId))];
+    const ratingsMap = await getAggregateRatingsForReviewees(producerIds, { type: "MARKET" });
+    const withRating: BrowseListing[] = withDistance.map((r) => ({
+      ...r,
+      averageRating: ratingsMap.get(r.producerId)?.averageRating ?? null,
+    }));
+
+    const sorted = [...withRating].sort((a, b) => {
+      if (a.featured !== b.featured) return a.featured ? -1 : 1;
+      if (sortBy === "rating") {
+        const ra = a.averageRating ?? 0;
+        const rb = b.averageRating ?? 0;
+        if (ra !== rb) return rb - ra;
+      }
+      if (sortBy === "price_asc") {
+        if (a.price !== b.price) return a.price - b.price;
+      }
+      if (sortBy === "newest") {
+        const ta = a.createdAt.getTime();
+        const tb = b.createdAt.getTime();
+        if (ta !== tb) return tb - ta;
+      }
+      if (sortBy === "distance" || !sortBy) {
+        if (a.label !== b.label) return a.label === "nearby" ? -1 : 1;
+        const da = a.distance ?? 9999;
+        const db = b.distance ?? 9999;
+        return da - db;
+      }
       if (a.label !== b.label) return a.label === "nearby" ? -1 : 1;
-      // Then by distance (null last)
       const da = a.distance ?? 9999;
       const db = b.distance ?? 9999;
       return da - db;
     });
 
+    const totalRaw = sorted.length;
+    const total = Math.min(totalRaw, TOTAL_CAP);
+    const skip = (page - 1) * pageSize;
+    const capped = sorted.slice(0, TOTAL_CAP);
+    const items = capped.slice(skip, skip + pageSize).map(({ createdAt: _c, ...listing }) => listing);
+
     return ok({
-      listings: sorted,
+      items,
+      page,
+      pageSize,
+      total,
+      listings: items,
       userZip: zip,
       radiusMiles,
     });
   } catch (e) {
     logError("listings/GET", e, { requestId, path: "/api/listings", method: "GET" });
-    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
+    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
   }
 }

@@ -1,14 +1,13 @@
 /**
- * POST /api/auth/onboarding — Sets ZIP, roles, primaryMode; creates role profiles; sets onboardedAt.
- * Body: { zipCode: string, roles?: ("BUYER"|"PRODUCER"|"CAREGIVER"|"CARE_SEEKER")[], primaryMode?: "MARKET"|"SELL"|"CARE" }.
- * Admin is never set via onboarding. Redirect uses getPostOnboardingRedirect.
+ * POST /api/auth/onboarding — Sets termsAcceptedAt, onboardingCompletedAt, ZIP (optional), roles, primaryMode.
+ * Only hard-require termsAccepted. Redirect uses getPostLoginRedirect (lastActiveMode → market).
  */
 
 import { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getPostOnboardingRedirect } from "@/lib/redirects";
-import { ok, fail, parseJsonBody } from "@/lib/api";
+import { getPostLoginRedirect } from "@/lib/redirects";
+import { ok, fail, parseJsonBody, withRequestId } from "@/lib/api";
 import { OnboardingSchema } from "@/lib/validators";
 import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limit";
 import { getRequestId } from "@/lib/request-id";
@@ -23,37 +22,60 @@ const SIGNUP_TO_PRISMA_ROLE: Record<string, Role> = {
 };
 
 export async function POST(request: NextRequest) {
-  const rateLimitRes = await checkRateLimit(request, RATE_LIMIT_PRESETS.AUTH);
+  const requestId = withRequestId(request);
+  const rateLimitRes = await checkRateLimit(request, RATE_LIMIT_PRESETS.AUTH, requestId);
   if (rateLimitRes) return rateLimitRes;
 
   try {
     const { data: body, error: parseError } = await parseJsonBody(request);
-    if (parseError) return fail(parseError, "INVALID_JSON", 400);
+    if (parseError) return fail(parseError, { code: "INVALID_JSON", status: 400 });
 
     const validationResult = OnboardingSchema.safeParse(body);
     if (!validationResult.success) {
-      return fail("Valid 5-digit ZIP code required", "INVALID_ZIP", 400);
+      const msg = validationResult.error.flatten().formErrors?.[0] ?? "Invalid request";
+      return fail(String(msg), { code: "VALIDATION_ERROR", status: 400, requestId });
     }
-    const { zipCode: zip, roles: roleIds, primaryMode } = validationResult.data;
+    const { termsAccepted, zipCode: zip, roles: roleIds, primaryMode, requestedUrl } = validationResult.data;
 
     const user = await getCurrentUser();
-    if (!user) return fail("Unauthorized", "UNAUTHORIZED", 401);
+    if (!user) return fail("Unauthorized", { code: "UNAUTHORIZED", status: 401 });
 
-    const isBuyer = roleIds != null && roleIds.length > 0 ? roleIds.includes("BUYER") : undefined;
-    const isProducer = roleIds != null && roleIds.length > 0 ? roleIds.includes("PRODUCER") : undefined;
-    const isCaregiver = roleIds != null && roleIds.length > 0 ? roleIds.includes("CAREGIVER") : undefined;
-    const isHomesteadOwner = roleIds != null && roleIds.length > 0 ? roleIds.includes("CARE_SEEKER") : undefined;
+    // Buyer is always on; form only sends "what else" (PRODUCER, CAREGIVER, CARE_SEEKER).
+    const roleIdsWithBuyer =
+      roleIds != null && roleIds.length > 0
+        ? roleIds.includes("BUYER")
+          ? roleIds
+          : [...roleIds, "BUYER"]
+        : ["BUYER"];
+    const isBuyer = true;
+    const isProducer = roleIdsWithBuyer?.includes("PRODUCER") ?? undefined;
+    const isCaregiver = roleIdsWithBuyer?.includes("CAREGIVER") ?? undefined;
+    const isHomesteadOwner = roleIdsWithBuyer?.includes("CARE_SEEKER") ?? undefined;
 
+    const now = new Date();
+    const zipValue: string | null =
+      zip && zip !== "" && /^\d{5}$/.test(zip)
+        ? zip
+        : user.zipCode && /^\d{5}$/.test(user.zipCode)
+          ? user.zipCode
+          : null;
     const updateData: {
-      zipCode: string;
+      zipCode?: string | { set: null };
       onboardedAt: Date;
+      termsAcceptedAt: Date;
+      onboardingCompletedAt: Date;
       primaryMode?: PrimaryMode;
       role?: Role;
       isBuyer?: boolean;
       isProducer?: boolean;
       isCaregiver?: boolean;
       isHomesteadOwner?: boolean;
-    } = { zipCode: zip, onboardedAt: new Date() };
+    } = {
+      zipCode: zipValue !== null ? zipValue : { set: null },
+      onboardedAt: now,
+      termsAcceptedAt: now,
+      onboardingCompletedAt: now,
+    };
     
     if (primaryMode) {
       updateData.primaryMode = primaryMode === "MARKET" ? PrimaryMode.MARKET
@@ -61,26 +83,22 @@ export async function POST(request: NextRequest) {
         : PrimaryMode.CARE;
     }
     
-    if (roleIds != null && roleIds.length > 0) {
-      updateData.isBuyer = isBuyer ?? false;
-      updateData.isProducer = isProducer ?? false;
-      updateData.isCaregiver = isCaregiver ?? false;
-      updateData.isHomesteadOwner = isHomesteadOwner ?? false;
-      updateData.role = isProducer ? Role.PRODUCER : Role.BUYER;
-    }
+    updateData.isBuyer = true;
+    updateData.isProducer = isProducer ?? false;
+    updateData.isCaregiver = isCaregiver ?? false;
+    updateData.isHomesteadOwner = isHomesteadOwner ?? false;
+    updateData.role = isProducer ? Role.PRODUCER : Role.BUYER;
 
     const updated = await prisma.$transaction(async (tx) => {
       const u = await tx.user.update({
         where: { id: user.id },
-        data: updateData,
+        data: updateData as Parameters<typeof tx.user.update>[0]["data"],
       });
 
-      if (roleIds != null && roleIds.length > 0) {
-        await tx.userRole.deleteMany({ where: { userId: user.id } });
-        for (const r of roleIds) {
-          const prismaRole = SIGNUP_TO_PRISMA_ROLE[r];
-          if (prismaRole) await tx.userRole.create({ data: { userId: user.id, role: prismaRole } });
-        }
+      await tx.userRole.deleteMany({ where: { userId: user.id } });
+      for (const r of roleIdsWithBuyer) {
+        const prismaRole = SIGNUP_TO_PRISMA_ROLE[r];
+        if (prismaRole) await tx.userRole.create({ data: { userId: user.id, role: prismaRole } });
       }
 
       if (isProducer) {
@@ -108,25 +126,22 @@ export async function POST(request: NextRequest) {
       return u;
     });
 
-    const redirectPath = getPostOnboardingRedirect({
-      primaryMode: updated.primaryMode,
-      role: updated.role,
-      isProducer: updated.isProducer,
-      isCaregiver: updated.isCaregiver,
-      isHomesteadOwner: updated.isHomesteadOwner,
-    });
+    const lastActiveMode = request.cookies.get("__last_active_mode")?.value ?? undefined;
+    const redirectPath = getPostLoginRedirect(lastActiveMode, { requestedUrl: requestedUrl ?? undefined });
     const res = ok({ redirect: redirectPath });
-    res.cookies.set("__dev_zip", zip, {
+    if (zipValue) {
+      res.cookies.set("__dev_zip", zipValue, {
       path: "/",
       maxAge: 60 * 60 * 24 * 365,
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
-    });
+      });
+    }
     return res;
   } catch (error) {
     const requestId = getRequestId(request);
     logError("auth/onboarding/POST", error, { requestId, path: "/api/auth/onboarding", method: "POST" });
-    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
+    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
   }
 }

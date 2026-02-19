@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:caregivers": "tsx scripts/test-caregivers-api.ts",
+    "test:help-exchange": "tsx scripts/test-help-exchange-api.ts",
+    "test:booking-idempotency": "tsx scripts/test-booking-idempotency.ts",
+    "audit:api-contracts": "tsx scripts/audit-api-contracts.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

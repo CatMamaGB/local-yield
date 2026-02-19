@@ -64,7 +64,7 @@ export function ProducerReviewsClient({
     setError(null);
     try {
       const data = await apiPost<{ conversationId: string }>(`/api/dashboard/reviews/${reviewId}/message`);
-      router.push(`/dashboard/messages?conversation=${data.conversationId}`);
+      router.push(`/dashboard/messages?conversationId=${data.conversationId}`);
     } catch (e) {
       setError(e instanceof ApiError ? apiErrorMessage(e) : (e instanceof Error ? e.message : "Failed"));
     } finally {

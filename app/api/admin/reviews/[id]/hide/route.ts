@@ -16,23 +16,23 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const requestId = getRequestId(request);
-  const rateLimitRes = await checkRateLimit(request);
+  const rateLimitRes = await checkRateLimit(request, undefined, requestId);
   if (rateLimitRes) return rateLimitRes;
 
   let admin: { id: string };
   try {
     admin = await requireAdmin();
   } catch {
-    return fail("Forbidden", "FORBIDDEN", 403);
+    return fail("Forbidden", { code: "FORBIDDEN", status: 403 });
   }
   const { id } = await params;
-  if (!id) return fail("Missing review id", "VALIDATION_ERROR", 400);
+  if (!id) return fail("Missing review id", { code: "VALIDATION_ERROR", status: 400 });
   try {
     const review = await prisma.review.findUnique({
       where: { id },
       select: { hiddenByAdmin: true, flaggedForAdmin: true },
     });
-    if (!review) return fail("Review not found", "NOT_FOUND", 404);
+    if (!review) return fail("Review not found", { code: "NOT_FOUND", status: 404 });
     await hideReviewByAdmin(id);
     await logReviewAdminAction(admin.id, "REVIEW_HIDE", id, {
       previousHidden: review.hiddenByAdmin,
@@ -41,6 +41,6 @@ export async function POST(
     return ok(undefined);
   } catch (e) {
     logError("admin/reviews/[id]/hide/POST", e, { requestId, path: "/api/admin/reviews/[id]/hide", method: "POST" });
-    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
+    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
   }
 }

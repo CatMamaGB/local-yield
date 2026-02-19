@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   try {
     await requireAdmin();
   } catch {
-    return fail("Forbidden", "FORBIDDEN", 403);
+    return fail("Forbidden", { code: "FORBIDDEN", status: 403 });
   }
   try {
     const { searchParams } = new URL(request.url);
@@ -24,6 +24,6 @@ export async function GET(request: NextRequest) {
     return ok({ logs });
   } catch (e) {
     logError("admin/custom-categories/logs/GET", e, { requestId, path: "/api/admin/custom-categories/logs", method: "GET" });
-    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
+    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
   }
 }

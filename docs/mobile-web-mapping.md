@@ -60,7 +60,7 @@ Mobile tabs and the web paths they map to:
 | **Orders** | `/dashboard/orders` | |
 | **Messages** | `/messages` | Add later. |
 | **Profile** | `/dashboard` or `/profile` | Dashboard for producers; profile for buyers/settings. |
-| **Care** (feature-flagged) | `/care/*` | `/care`, `/care/browse`, `/care/caregiver/[id]` when `NEXT_PUBLIC_ENABLE_CARE=true`. |
+| **Care** | `/care/*` | `/care`, `/care/browse`, `/care/caregiver/[id]`. Care is always available alongside Market. |
 
 Important: don’t overthink the paths. The URL is the source of truth; mobile and web share the same routes for deep links.
 

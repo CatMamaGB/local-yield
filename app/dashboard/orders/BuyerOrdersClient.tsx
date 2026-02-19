@@ -1,11 +1,12 @@
 "use client";
 
 /**
- * Buyer orders: order cards + Leave review / Update review + post-submit message and post-resolution prompt.
+ * Buyer orders: order cards + Leave review / Update review + Message producer + post-submit message and post-resolution prompt.
  */
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/utils";
 import { OrderStatusBadge } from "@/components/OrderStatusBadge";
 import { apiPost, apiPatch } from "@/lib/client/api-client";
@@ -60,8 +61,23 @@ export function BuyerOrdersClient({
   const [showUpdateFormReviewId, setShowUpdateFormReviewId] = useState<string | null>(null);
   const [comment, setComment] = useState("");
   const [rating, setRating] = useState(3);
+  const [privateNote, setPrivateNote] = useState(true);
   const [updateComment, setUpdateComment] = useState("");
   const [updateRating, setUpdateRating] = useState(3);
+  const [messageLoadingOrderId, setMessageLoadingOrderId] = useState<string | null>(null);
+  const router = useRouter();
+
+  async function handleMessageProducer(orderId: string) {
+    setMessageLoadingOrderId(orderId);
+    try {
+      const data = await apiPost<{ conversationId: string }>(`/api/orders/${orderId}/conversation`, {});
+      router.push(`/dashboard/messages?conversationId=${data.conversationId}`);
+    } catch (e) {
+      alert(e instanceof ApiError ? apiErrorMessage(e) : (e instanceof Error ? e.message : "Failed to open messages"));
+    } finally {
+      setMessageLoadingOrderId(null);
+    }
+  }
 
   async function handleSubmitReview(orderId: string) {
     const c = comment.trim();
@@ -72,7 +88,7 @@ export function BuyerOrdersClient({
         orderId,
         comment: c,
         rating,
-        privateFlag: true,
+        privateFlag: privateNote,
       });
       setReviews((prev) => ({
         ...prev,
@@ -80,7 +96,7 @@ export function BuyerOrdersClient({
           id: data.review.id,
           comment: c,
           rating,
-          privateFlag: data.review.privateFlag ?? true,
+          privateFlag: data.review.privateFlag ?? privateNote,
           resolved: false,
           createdAt: new Date().toISOString(),
           adminGuidance: null,
@@ -131,7 +147,9 @@ export function BuyerOrdersClient({
           >
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
-                <p className="font-display font-semibold text-brand">{o.title}</p>
+                <Link href={`/dashboard/orders/${o.id}`} className="font-display font-semibold text-brand hover:underline">
+                  {o.title}
+                </Link>
                 <p className="text-sm text-brand/70">
                   {o.producerName ?? "Producer"} · {o.pickupDate ? `Pickup ${formatDate(o.pickupDate)}` : "Pickup TBD"}
                 </p>
@@ -139,17 +157,27 @@ export function BuyerOrdersClient({
                   <OrderStatusBadge status={o.status} />
                 </div>
               </div>
-              {o.pickupCode && (
-                <div className="rounded-lg border-2 border-dashed border-brand/30 bg-brand-light/50 px-4 py-2 text-center">
-                  <p className="text-xs font-medium text-brand/70 uppercase tracking-wider">Pickup code</p>
-                  <p className="font-mono text-xl font-bold text-brand">{o.pickupCode}</p>
-                  <p className="text-xs text-brand/60">Show at pickup</p>
-                </div>
-              )}
+              <div className="flex flex-wrap items-center gap-2">
+                {o.pickupCode && (
+                  <div className="rounded-lg border-2 border-dashed border-brand/30 bg-brand-light/50 px-4 py-2 text-center">
+                    <p className="text-xs font-medium text-brand/70 uppercase tracking-wider">Pickup code</p>
+                    <p className="font-mono text-xl font-bold text-brand">{o.pickupCode}</p>
+                    <p className="text-xs text-brand/60">Show at pickup</p>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleMessageProducer(o.id)}
+                  disabled={messageLoadingOrderId === o.id}
+                  className="rounded border border-brand/30 px-3 py-2 text-sm font-medium text-brand hover:bg-brand-light disabled:opacity-50"
+                >
+                  {messageLoadingOrderId === o.id ? "Opening…" : "Message producer"}
+                </button>
+              </div>
             </div>
 
-            {/* Leave review */}
-            {!review && (
+            {/* Leave review — only after order is fulfilled */}
+            {!review && o.status === "FULFILLED" && (
               <div className="mt-4 border-t border-brand/10 pt-4">
                 {!showFormOrderId ? (
                   <button
@@ -181,6 +209,15 @@ export function BuyerOrdersClient({
                         ))}
                       </select>
                     </div>
+                    <label className="flex items-center gap-2 text-sm text-brand/80">
+                      <input
+                        type="checkbox"
+                        checked={privateNote}
+                        onChange={(e) => setPrivateNote(e.target.checked)}
+                        className="rounded border-brand/30"
+                      />
+                      Private note to producer (only they see this)
+                    </label>
                     <div className="flex gap-2">
                       <button
                         type="button"
@@ -192,7 +229,7 @@ export function BuyerOrdersClient({
                       </button>
                       <button
                         type="button"
-                        onClick={() => { setShowFormOrderId(null); setComment(""); setRating(3); }}
+                        onClick={() => { setShowFormOrderId(null); setComment(""); setRating(3); setPrivateNote(true); }}
                         className="rounded border border-brand/30 px-4 py-2 text-sm text-brand hover:bg-brand-light"
                       >
                         Cancel

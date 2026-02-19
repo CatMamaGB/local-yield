@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   const requestId = getRequestId(request);
   try {
     const user = await getCurrentUser();
-    if (!user) return fail("Unauthorized", "UNAUTHORIZED", 401);
+    if (!user) return fail("Unauthorized", { code: "UNAUTHORIZED", status: 401 });
 
     const isProducerOrAdmin =
       user.role === "PRODUCER" || user.role === "ADMIN" || user.isProducer === true;
@@ -31,6 +31,6 @@ export async function GET(request: NextRequest) {
     return ok(counts);
   } catch (error) {
     logError("dashboard/summary/GET", error, { requestId, path: "/api/dashboard/summary", method: "GET" });
-    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
+    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
   }
 }

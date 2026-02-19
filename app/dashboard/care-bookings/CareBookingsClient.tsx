@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { SERVICE_TYPE_LABELS, SPECIES_LABELS } from "@/lib/care/labels";
 import type { CareBookingStatus, AnimalSpecies, CareServiceType } from "@prisma/client";
 import { apiPatch, apiPost } from "@/lib/client/api-client";
 import { ApiError, apiErrorMessage } from "@/lib/client/api-client";
@@ -33,7 +34,7 @@ interface CareBookingsClientProps {
   currentUserId: string;
 }
 
-// UI labels (i18n-friendly)
+// UI labels for status (species/serviceType from @/lib/care/labels)
 const LABELS = {
   status: {
     REQUESTED: "Requested",
@@ -41,24 +42,6 @@ const LABELS = {
     DECLINED: "Declined",
     CANCELED: "Canceled",
     COMPLETED: "Completed",
-  },
-  species: {
-    HORSES: "Horses",
-    CATTLE: "Cattle",
-    GOATS: "Goats",
-    SHEEP: "Sheep",
-    PIGS: "Pigs",
-    POULTRY: "Poultry",
-    ALPACAS: "Alpacas",
-    LLAMAS: "Llamas",
-    DONKEYS: "Donkeys",
-    OTHER: "Other",
-  },
-  serviceType: {
-    DROP_IN: "Drop-in visits",
-    OVERNIGHT: "Overnight care",
-    BOARDING: "Boarding",
-    FARM_SITTING: "Farm sitting",
   },
 } as const;
 
@@ -100,7 +83,7 @@ export function CareBookingsClient({ bookings, currentUserId }: CareBookingsClie
   async function handleMessage(bookingId: string, _otherUserId: string) {
     try {
       const data = await apiPost<{ conversationId: string }>(`/api/care/bookings/${bookingId}/conversation`);
-      router.push(`/dashboard/messages?conversation=${data.conversationId}`);
+      router.push(`/dashboard/messages?conversationId=${data.conversationId}`);
     } catch (err) {
       setError(err instanceof ApiError ? apiErrorMessage(err) : (err instanceof Error ? err.message : "Failed to open messages"));
     }
@@ -110,7 +93,7 @@ export function CareBookingsClient({ bookings, currentUserId }: CareBookingsClie
     return (
       <EmptyState
         title="No bookings yet"
-        action={{ label: "Browse caregivers", href: "/care/browse" }}
+        action={{ label: "Browse helpers", href: "/care/browse" }}
         className="rounded-xl border border-brand/20"
       />
     );
@@ -145,9 +128,9 @@ export function CareBookingsClient({ bookings, currentUserId }: CareBookingsClie
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div>
-                      <h3 className="font-semibold text-brand">
+                      <Link href={`/dashboard/care-bookings/${booking.id}`} className="font-semibold text-brand hover:underline">
                         Request from {booking.careSeeker.name || "Care seeker"}
-                      </h3>
+                      </Link>
                       <p className="text-sm text-brand/70 mt-1">
                         {new Date(booking.startAt).toLocaleDateString()} - {new Date(booking.endAt).toLocaleDateString()}
                       </p>
@@ -166,13 +149,13 @@ export function CareBookingsClient({ bookings, currentUserId }: CareBookingsClie
                     {booking.species && (
                       <p>
                         <span className="font-medium">Species:</span>{" "}
-                        {LABELS.species[booking.species] || booking.species}
+                        {booking.species ? SPECIES_LABELS[booking.species] : booking.species}
                       </p>
                     )}
                     {booking.serviceType && (
                       <p>
                         <span className="font-medium">Service:</span>{" "}
-                        {LABELS.serviceType[booking.serviceType] || booking.serviceType}
+                        {booking.serviceType ? SERVICE_TYPE_LABELS[booking.serviceType] : booking.serviceType}
                       </p>
                     )}
                     {booking.notes && (
@@ -234,9 +217,9 @@ export function CareBookingsClient({ bookings, currentUserId }: CareBookingsClie
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div>
-                      <h3 className="font-semibold text-brand">
-                        Booking with {booking.caregiver.name || "Caregiver"}
-                      </h3>
+                      <Link href={`/dashboard/care-bookings/${booking.id}`} className="font-semibold text-brand hover:underline">
+                        Booking with {booking.caregiver.name || "Helper"}
+                      </Link>
                       <p className="text-sm text-brand/70 mt-1">
                         {new Date(booking.startAt).toLocaleDateString()} - {new Date(booking.endAt).toLocaleDateString()}
                       </p>
@@ -255,13 +238,13 @@ export function CareBookingsClient({ bookings, currentUserId }: CareBookingsClie
                     {booking.species && (
                       <p>
                         <span className="font-medium">Species:</span>{" "}
-                        {LABELS.species[booking.species] || booking.species}
+                        {booking.species ? SPECIES_LABELS[booking.species] : booking.species}
                       </p>
                     )}
                     {booking.serviceType && (
                       <p>
                         <span className="font-medium">Service:</span>{" "}
-                        {LABELS.serviceType[booking.serviceType] || booking.serviceType}
+                        {booking.serviceType ? SERVICE_TYPE_LABELS[booking.serviceType] : booking.serviceType}
                       </p>
                     )}
                     {booking.notes && (

@@ -1,7 +1,8 @@
 /**
- * Care — browse caregivers.
+ * Care — browse helpers (caregivers). Reads zip, radius, category from URL.
  */
 
+import { Suspense } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { CareBrowseClient } from "./CareBrowseClient";
@@ -14,12 +15,14 @@ export default function CareBrowsePage() {
           ← Back to Care
         </Link>
         <PageHeader
-          title="Browse caregivers"
-          subtitle="Find trusted farm animal care near you. Search by ZIP code and filter by species or service type."
+          title="Browse helpers"
+          subtitle="Find trusted farm and homestead help near you. Search by ZIP code and filter by species or service type."
           className="mt-4"
         />
         <div className="mt-8">
-          <CareBrowseClient />
+          <Suspense fallback={<div className="text-brand/70">Loading…</div>}>
+            <CareBrowseClient />
+          </Suspense>
         </div>
       </section>
     </div>

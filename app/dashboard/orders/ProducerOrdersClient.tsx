@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { formatDate } from "@/lib/utils";
 import { OrderStatusFilter, type OrderFilterStatus } from "@/components/OrderStatusFilter";
 import { OrderStatusBadge } from "@/components/OrderStatusBadge";
@@ -73,7 +74,9 @@ export function ProducerOrdersClient({ initialOrders }: ProducerOrdersClientProp
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <p className="font-display font-semibold text-brand">{title}</p>
+                  <Link href={`/dashboard/orders/${o.id}`} className="font-display font-semibold text-brand hover:underline">
+                    {title}
+                  </Link>
                   <p className="text-sm text-brand/70">
                     {o.buyer.name ?? "Buyer"} · {o.pickupDate ? `Pickup ${formatDate(o.pickupDate)}` : "Pickup TBD"}
                   </p>

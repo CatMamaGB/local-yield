@@ -5,6 +5,7 @@
  */
 
 import { prisma } from "./prisma";
+import { detectPII } from "./messaging/pii-blocklist";
 
 /** Normalize so userAId < userBId for consistent lookup (optional; or use findFirst with OR). */
 function orderedUserIds(userAId: string, userBId: string): [string, string] {
@@ -79,6 +80,12 @@ export interface SendMessageInput {
 }
 
 export async function sendMessage(input: SendMessageInput) {
+  // Check for PII in message body
+  const piiMatch = detectPII(input.body);
+  if (piiMatch) {
+    throw new Error(`PII_DETECTED: ${piiMatch.type}`);
+  }
+
   const conv = await prisma.conversation.findFirst({
     where: {
       id: input.conversationId,
@@ -86,12 +93,42 @@ export async function sendMessage(input: SendMessageInput) {
     },
   });
   if (!conv) throw new Error("Conversation not found");
-  return prisma.message.create({
+  
+  const message = await prisma.message.create({
     data: {
       conversationId: input.conversationId,
       senderId: input.senderId,
       body: input.body,
     },
     include: { sender: { select: { id: true, name: true } } },
+  });
+
+  // Notify recipient
+  const recipientId = conv.userAId === input.senderId ? conv.userBId : conv.userAId;
+  const { createNotification } = await import("./notify/notify");
+  await createNotification({
+    userId: recipientId,
+    type: "NEW_MESSAGE",
+    title: "New message",
+    body: `You have a new message from ${message.sender.name || "someone"}.`,
+    link: `/dashboard/messages?conversation=${input.conversationId}`,
+  });
+
+  return message;
+}
+
+/** Mark conversation as read for the given user (updates userALastReadAt or userBLastReadAt). */
+export async function markConversationAsRead(conversationId: string, userId: string) {
+  const conv = await prisma.conversation.findFirst({
+    where: {
+      id: conversationId,
+      OR: [{ userAId: userId }, { userBId: userId }],
+    },
+  });
+  if (!conv) return;
+  const isUserA = conv.userAId === userId;
+  await prisma.conversation.update({
+    where: { id: conversationId },
+    data: isUserA ? { userALastReadAt: new Date() } : { userBLastReadAt: new Date() },
   });
 }

@@ -7,7 +7,7 @@
 
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { ok, fail, parseJsonBody } from "@/lib/api";
+import { ok, fail, parseJsonBody, withRequestId } from "@/lib/api";
 import { SignupSchema } from "@/lib/validators";
 import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limit";
 import { PlatformUse, Role, PrimaryMode } from "@prisma/client";
@@ -41,25 +41,27 @@ function derivePlatformUse(roles: string[], primaryMode: PrimaryMode): PlatformU
 }
 
 export async function POST(request: NextRequest) {
-  const rateLimitRes = await checkRateLimit(request, RATE_LIMIT_PRESETS.AUTH);
+  const requestId = withRequestId(request);
+  const rateLimitRes = await checkRateLimit(request, RATE_LIMIT_PRESETS.AUTH, requestId);
   if (rateLimitRes) return rateLimitRes;
 
   try {
     const { data: body, error: parseError } = await parseJsonBody(request);
-    if (parseError) return fail(parseError, "INVALID_JSON", 400);
+    if (parseError) return fail(parseError, { code: "INVALID_JSON", status: 400, requestId });
 
     const parsed = SignupSchema.safeParse(body);
     if (!parsed.success) {
       const msg = parsed.error.flatten().formErrors?.[0] ?? parsed.error.message ?? "Validation failed";
-      return fail(String(msg), "VALIDATION_ERROR", 400);
+      return fail(String(msg), { code: "VALIDATION_ERROR", status: 400, requestId });
     }
     const data = parsed.data;
 
     const existing = await prisma.user.findUnique({ where: { email: data.email } });
-    if (existing) return fail("An account with this email already exists", "EMAIL_TAKEN", 409);
+    if (existing) return fail("An account with this email already exists", { code: "EMAIL_TAKEN", status: 409, requestId });
 
-    const normalizedRoles = [...new Set(data.roles)];
-    const isBuyer = normalizedRoles.includes("BUYER");
+    // Buyer is always on; signup form only sends "what else" (PRODUCER, CAREGIVER, CARE_SEEKER).
+    const normalizedRoles = [...new Set([...data.roles, "BUYER"])];
+    const isBuyer = true;
     const isProducer = normalizedRoles.includes("PRODUCER");
     const isCaregiver = normalizedRoles.includes("CAREGIVER");
     const isHomesteadOwner = normalizedRoles.includes("CARE_SEEKER");
@@ -77,12 +79,16 @@ export async function POST(request: NextRequest) {
       .filter(Boolean)
       .map((role) => ({ role }));
 
+    const zipValue =
+      data.zipCode && typeof data.zipCode === "string" && /^\d{5}$/.test(data.zipCode.trim())
+        ? data.zipCode.trim().slice(0, 5)
+        : null;
     const user = await prisma.user.create({
       data: {
         email: data.email,
         name: data.name.trim() || null,
         phone: data.phone.trim(),
-        zipCode: data.zipCode,
+        zipCode: zipValue,
         addressLine1: data.addressLine1?.trim() || null,
         city: data.city?.trim() || null,
         state: data.state?.trim() || null,
@@ -102,7 +108,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    const res = ok({ redirect: "/auth/onboarding" });
+    const res = ok({ redirect: "/auth/onboarding" }, requestId);
 
     if (process.env.NODE_ENV === "development") {
       res.cookies.set("__dev_user_id", user.id, {
@@ -124,6 +130,6 @@ export async function POST(request: NextRequest) {
     return res;
   } catch (error) {
     console.error("Signup error:", error);
-    return fail("Something went wrong. Please try again.", "INTERNAL_ERROR", 500);
+    return fail("Something went wrong. Please try again.", { code: "INTERNAL_ERROR", status: 500, requestId });
   }
 }

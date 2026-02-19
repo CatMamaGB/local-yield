@@ -32,25 +32,25 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     logError("dashboard/events/GET", e, { requestId, path: "/api/dashboard/events", method: "GET" });
     const message = e instanceof Error ? e.message : "Forbidden";
-    return fail(message, "FORBIDDEN", 403);
+    return fail(message, { code: "FORBIDDEN", status: 403 });
   }
 }
 
 export async function POST(request: NextRequest) {
   const requestId = getRequestId(request);
-  const rateLimitRes = await checkRateLimit(request);
+  const rateLimitRes = await checkRateLimit(request, undefined, requestId);
   if (rateLimitRes) return rateLimitRes;
 
   try {
     const user = await requireProducerOrAdmin();
     const { data: body, error: parseError } = await parseJsonBody(request);
-    if (parseError) return fail(parseError, "INVALID_JSON", 400);
+    if (parseError) return fail(parseError, { code: "INVALID_JSON", status: 400 });
 
     const name = String(body?.name ?? "").trim();
     const location = String(body?.location ?? "").trim();
-    if (!name || !location) return fail("Name and location required", "VALIDATION_ERROR", 400);
+    if (!name || !location) return fail("Name and location required", { code: "VALIDATION_ERROR", status: 400 });
     const eventDate = body?.eventDate ? new Date(body.eventDate) : null;
-    if (!eventDate || Number.isNaN(eventDate.getTime())) return fail("Valid event date required", "VALIDATION_ERROR", 400);
+    if (!eventDate || Number.isNaN(eventDate.getTime())) return fail("Valid event date required", { code: "VALIDATION_ERROR", status: 400 });
     const eventHours = body?.eventHours != null ? String(body.eventHours).trim() || null : null;
     const event = await prisma.event.create({
       data: {
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
   } catch (e) {
     logError("dashboard/events/POST", e, { requestId, path: "/api/dashboard/events", method: "POST" });
     const message = e instanceof Error ? e.message : "";
-    if (message === "Forbidden") return fail(message, "FORBIDDEN", 403);
-    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
+    if (message === "Forbidden") return fail(message, { code: "FORBIDDEN", status: 403 });
+    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
   }
 }

@@ -4,6 +4,7 @@
  */
 
 import { NextRequest } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { ok, fail, parseJsonBody } from "@/lib/api";
@@ -18,80 +19,66 @@ export async function GET(request: NextRequest) {
     const user = await requireAuth();
     const dbUser = await prisma.user.findUnique({
       where: { id: user.id },
-      select: {
-        name: true,
-        email: true,
-        phone: true,
-        zipCode: true,
-        addressLine1: true,
-        city: true,
-        state: true,
-      },
     });
-    if (!dbUser) return fail("Not found", "NOT_FOUND", 404);
+    if (!dbUser) return fail("Not found", { code: "NOT_FOUND", status: 404 });
     return ok({
       name: dbUser.name ?? "",
       email: dbUser.email,
       phone: dbUser.phone,
-      zipCode: dbUser.zipCode,
+      zipCode: dbUser.zipCode ?? null,
       addressLine1: dbUser.addressLine1 ?? "",
       city: dbUser.city ?? "",
       state: dbUser.state ?? "",
+      allowProducerExport: (dbUser as { allowProducerExport?: boolean }).allowProducerExport ?? true,
     });
   } catch (e) {
     logError("account/GET", e, { requestId, path: "/api/account", method: "GET" });
     const message = e instanceof Error ? e.message : "Unauthorized";
-    return fail(message, "UNAUTHORIZED", 401);
+    return fail(message, { code: "UNAUTHORIZED", status: 401 });
   }
 }
 
 export async function PATCH(request: NextRequest) {
   const requestId = getRequestId(request);
-  const rateLimitRes = await checkRateLimit(request);
+  const rateLimitRes = await checkRateLimit(request, undefined, requestId);
   if (rateLimitRes) return rateLimitRes;
 
   try {
     const user = await requireAuth();
     const { data: body, error: parseError } = await parseJsonBody(request);
-    if (parseError) return fail(parseError, "INVALID_JSON", 400);
+    if (parseError) return fail(parseError, { code: "INVALID_JSON", status: 400 });
 
     const parsed = AccountUpdateSchema.safeParse(body);
     if (!parsed.success) {
       const first = parsed.error.flatten().fieldErrors;
       const msg = first.name?.[0] ?? first.phone?.[0] ?? first.zipCode?.[0] ?? "Invalid fields";
-      return fail(msg, "VALIDATION_ERROR", 400);
+      return fail(msg, { code: "VALIDATION_ERROR", status: 400 });
     }
 
-    const { name, phone, zipCode, addressLine1, city, state } = parsed.data;
-    const updateData: {
-      name?: string | null;
-      phone?: string;
-      zipCode?: string;
-      addressLine1?: string | null;
-      city?: string | null;
-      state?: string | null;
-    } = {};
+    const { name, phone, zipCode, addressLine1, city, state, allowProducerExport } = parsed.data;
+    const updateData: Prisma.UserUpdateInput = {};
     if (name !== undefined) updateData.name = name.trim() || null;
     if (phone !== undefined) updateData.phone = phone.trim();
     if (zipCode !== undefined) {
-      const z = zipCode.trim().slice(0, 5);
-      if (/^\d{5}$/.test(z)) updateData.zipCode = z;
+      const z = (zipCode ?? "").toString().trim().slice(0, 5);
+      (updateData as Record<string, unknown>).zipCode = /^\d{5}$/.test(z) ? z : { set: null };
     }
     if (addressLine1 !== undefined) updateData.addressLine1 = addressLine1?.trim() || null;
     if (city !== undefined) updateData.city = city?.trim() || null;
     if (state !== undefined) updateData.state = state?.trim() || null;
+    if (allowProducerExport !== undefined) (updateData as Record<string, unknown>).allowProducerExport = allowProducerExport;
 
     if (Object.keys(updateData).length === 0) return ok(undefined);
 
     await prisma.user.update({
       where: { id: user.id },
-      data: updateData,
+      data: updateData as Prisma.UserUpdateInput,
     });
     return ok(undefined);
   } catch (e) {
     logError("account/PATCH", e, { requestId, path: "/api/account", method: "PATCH" });
     const message = e instanceof Error ? e.message : "";
-    if (message === "Unauthorized") return fail(message, "UNAUTHORIZED", 401);
-    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
+    if (message === "Unauthorized") return fail(message, { code: "UNAUTHORIZED", status: 401 });
+    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
   }
 }

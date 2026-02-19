@@ -40,7 +40,8 @@ function useRedis(): boolean {
 async function checkRateLimitMemory(
   request: Request,
   windowMs: number,
-  max: number
+  max: number,
+  requestId?: string
 ): Promise<Response | null> {
   const key = getIdentifier(request);
   const now = Date.now();
@@ -61,7 +62,11 @@ async function checkRateLimitMemory(
 
   entry.count += 1;
   if (entry.count > max) {
-    return fail("Too many requests", "RATE_LIMIT", 429);
+    return fail("Too many requests. Please try again in a moment.", {
+      code: "RATE_LIMIT",
+      status: 429,
+      requestId,
+    });
   }
 
   return null;
@@ -69,20 +74,22 @@ async function checkRateLimitMemory(
 
 /**
  * Check rate limit for this request. If over limit, returns a 429 Response.
- * Call at the start of mutation handlers: if (const res = await checkRateLimit(request)) return res;
+ * Call at the start of mutation handlers: if (const res = await checkRateLimit(request, preset, requestId)) return res;
  * Options: pass { windowMs, max } or use RATE_LIMIT_PRESETS (e.g. RATE_LIMIT_PRESETS.AUTH).
  * Uses Redis when UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are set; otherwise in-memory.
+ * @param requestId - Request ID to include in rate limit error responses
  */
 export async function checkRateLimit(
   request: Request,
-  options?: RateLimitOptions
+  options?: RateLimitOptions,
+  requestId?: string
 ): Promise<Response | null> {
   const windowMs = options?.windowMs ?? DEFAULT_WINDOW_MS;
   const max = options?.max ?? DEFAULT_MAX;
 
   if (useRedis()) {
-    return checkRateLimitRedis(request, { windowMs, max }, windowMs, max);
+    return checkRateLimitRedis(request, { windowMs, max }, windowMs, max, requestId);
   }
 
-  return checkRateLimitMemory(request, windowMs, max);
+  return checkRateLimitMemory(request, windowMs, max, requestId);
 }

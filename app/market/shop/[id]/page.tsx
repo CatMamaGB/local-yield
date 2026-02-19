@@ -1,6 +1,6 @@
 /**
  * Market — producer storefront (business page). Public shop page for a producer.
- * Loads producer, profile, upcoming events, and products.
+ * Loads producer, profile, upcoming events, reviews, and products.
  */
 
 import Link from "next/link";
@@ -8,6 +8,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { getDistanceBetweenZips } from "@/lib/geo";
+import { getPublicReviewsForReviewee, getAggregateRatingForReviewee } from "@/lib/reviews";
 import { ProducerHeader } from "@/components/ProducerHeader";
 import { ProducerProductGrid } from "@/components/ProducerProductGrid";
 
@@ -48,6 +49,11 @@ export default async function ShopPage({ params }: ShopPageProps) {
   const deliveryFeeCents = profile?.deliveryFeeCents ?? 0;
   const anyPickup = producer.products.some((p) => p.pickup);
 
+  const [publicReviews, aggregate] = await Promise.all([
+    getPublicReviewsForReviewee(id, { type: "MARKET", limit: 10 }),
+    getAggregateRatingForReviewee(id, { type: "MARKET" }),
+  ]);
+
   return (
     <div className="min-h-screen bg-brand-light">
       <div className="mx-auto max-w-6xl px-4 py-8">
@@ -77,6 +83,30 @@ export default async function ShopPage({ params }: ShopPageProps) {
             availabilityHours={profile?.availabilityHours ?? null}
           />
         </div>
+        {(aggregate.count > 0 || publicReviews.length > 0) && (
+          <section className="mt-6 rounded-xl border border-brand/20 bg-white p-6 shadow-sm">
+            <h2 className="font-display text-lg font-semibold text-brand">Reviews & reputation</h2>
+            {aggregate.count > 0 && (
+              <p className="mt-1 text-sm text-brand/80">
+                <span className="font-medium text-brand">{"⭐".repeat(Math.round(aggregate.averageRating ?? 0))}</span>{" "}
+                {aggregate.averageRating?.toFixed(1)} ({aggregate.count} review{aggregate.count !== 1 ? "s" : ""})
+              </p>
+            )}
+            {publicReviews.length > 0 && (
+              <ul className="mt-4 space-y-3">
+                {publicReviews.slice(0, 5).map((r) => (
+                  <li key={r.id} className="border-b border-brand/10 pb-3 last:border-0 last:pb-0">
+                    <p className="text-sm font-medium text-brand">
+                      {r.rating != null && `${"⭐".repeat(r.rating)} `}
+                      {r.reviewer.name ?? "Customer"}
+                    </p>
+                    <p className="mt-0.5 text-sm text-brand/80 line-clamp-2">{r.comment}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
         <div className="mt-8">
           <ProducerProductGrid
             products={producer.products.map((p) => ({

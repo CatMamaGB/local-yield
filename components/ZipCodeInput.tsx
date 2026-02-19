@@ -20,7 +20,7 @@ export interface ZipCodeInputProps {
   "aria-label"?: string;
 }
 
-const RADIUS_OPTIONS = [10, 25, 50, 100];
+const RADIUS_OPTIONS = [10, 25, 50, 100, 150];
 
 export function ZipCodeInput({
   value,

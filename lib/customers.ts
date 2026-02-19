@@ -13,6 +13,8 @@ export interface ProducerCustomer {
   orderCount: number;
   lastOrderAt: Date | null;
   note: string | null;
+  /** If false, do not include in producer contact export (CSV). */
+  allowProducerExport: boolean;
 }
 
 /**
@@ -22,14 +24,14 @@ export async function getCustomersForProducer(producerId: string): Promise<Produ
   const orders = await prisma.order.findMany({
     where: { producerId },
     include: {
-      buyer: { select: { id: true, name: true, email: true } },
+      buyer: { select: { id: true, name: true, email: true, allowProducerExport: true } },
     },
     orderBy: { createdAt: "desc" },
   });
 
   const byBuyer = new Map<
     string,
-    { name: string | null; email: string; orderCount: number; lastOrderAt: Date | null }
+    { name: string | null; email: string; orderCount: number; lastOrderAt: Date | null; allowProducerExport: boolean }
   >();
   for (const o of orders) {
     const b = o.buyer;
@@ -45,6 +47,7 @@ export async function getCustomersForProducer(producerId: string): Promise<Produ
         email: b.email,
         orderCount: 1,
         lastOrderAt: o.createdAt,
+        allowProducerExport: b.allowProducerExport ?? true,
       });
     }
   }
@@ -62,6 +65,7 @@ export async function getCustomersForProducer(producerId: string): Promise<Produ
     orderCount: data.orderCount,
     lastOrderAt: data.lastOrderAt,
     note: notesByBuyer.get(buyerId) ?? null,
+    allowProducerExport: data.allowProducerExport,
   }));
 }
 

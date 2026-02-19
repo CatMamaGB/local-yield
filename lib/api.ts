@@ -3,30 +3,77 @@
  */
 
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { getRequestId } from "./request-id";
 
 /**
- * Success response helper
+ * Standard API response type. All routes should return this shape.
  */
-export function ok(data?: any) {
-  return NextResponse.json({ ok: true, data });
+export type ApiResponse<T> =
+  | { ok: true; data: T; requestId?: string }
+  | {
+      ok: false;
+      error: string | { code: string; message: string };
+      code?: string;
+      requestId?: string;
+    };
+
+/**
+ * Get request ID from request (reads header or generates short ID).
+ * Use this at the start of route handlers to get requestId for responses.
+ */
+export function withRequestId(request: NextRequest | Request): string {
+  return getRequestId(request);
 }
 
 /**
- * Error response helper. Optionally pass extra fields (e.g. requestId for debugging).
+ * Success response helper. Attaches requestId if provided.
+ */
+export function ok<T>(data: T, requestId?: string) {
+  return NextResponse.json({ ok: true, data, ...(requestId && { requestId }) });
+}
+
+/**
+ * Error response helper. Use options object so requestId and extra are unambiguous.
  * Do not leak stack traces or sensitive data in extra.
+ * For validation or client-branchable errors, prefer failStructured so clients can rely on error.code.
  */
 export function fail(
-  error: string,
-  code?: string,
+  message: string,
+  opts?: {
+    code?: string;
+    status?: number;
+    requestId?: string;
+    extra?: Record<string, string | number | boolean | null>;
+  }
+) {
+  const { code, status = 400, requestId, extra } = opts ?? {};
+  return NextResponse.json(
+    {
+      ok: false,
+      error: message,
+      ...(code && { code }),
+      ...(requestId && { requestId }),
+      ...(extra && Object.keys(extra).length > 0 ? extra : {}),
+    },
+    { status }
+  );
+}
+
+/**
+ * Structured error response: { ok: false, error: { code, message } }.
+ * Prefer this for validation and client-branchable errors so clients can use error.code without string-matching.
+ */
+export function failStructured(
+  error: { code: string; message: string },
   status: number = 400,
-  extra?: Record<string, string | number | boolean | null>
+  requestId?: string
 ) {
   return NextResponse.json(
     {
       ok: false,
-      error,
-      ...(code && { code }),
-      ...(extra && Object.keys(extra).length > 0 ? extra : {}),
+      error: { code: error.code, message: error.message },
+      ...(requestId && { requestId }),
     },
     { status }
   );

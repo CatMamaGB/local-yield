@@ -15,20 +15,20 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const requestId = getRequestId(request);
-  const rateLimitRes = await checkRateLimit(request);
+  const rateLimitRes = await checkRateLimit(request, undefined, requestId);
   if (rateLimitRes) return rateLimitRes;
 
   try {
     const user = await requireProducerOrAdmin();
     const { id } = await params;
-    if (!id) return fail("Missing review id", "VALIDATION_ERROR", 400);
+    if (!id) return fail("Missing review id", { code: "VALIDATION_ERROR", status: 400 });
     await approveReviewByProducer(id, user.id);
     return ok(undefined);
   } catch (e) {
     logError("dashboard/reviews/[id]/approve/POST", e, { requestId, path: "/api/dashboard/reviews/[id]/approve", method: "POST" });
     const message = e instanceof Error ? e.message : "";
-    if (message === "Forbidden") return fail(message, "FORBIDDEN", 403);
-    if (message.includes("not found")) return fail("Review not found", "NOT_FOUND", 404);
-    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
+    if (message === "Forbidden") return fail(message, { code: "FORBIDDEN", status: 403 });
+    if (message.includes("not found")) return fail("Review not found", { code: "NOT_FOUND", status: 404 });
+    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
   }
 }

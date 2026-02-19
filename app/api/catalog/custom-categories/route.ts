@@ -14,18 +14,18 @@ import { getRequestId } from "@/lib/request-id";
 
 export async function POST(request: NextRequest) {
   const requestId = getRequestId(request);
-  const rateLimitRes = await checkRateLimit(request);
+  const rateLimitRes = await checkRateLimit(request, undefined, requestId);
   if (rateLimitRes) return rateLimitRes;
 
   try {
     const user = await requireProducerOrAdmin();
     const { data: body, error: parseError } = await parseJsonBody(request);
-    if (parseError) return fail(parseError, "INVALID_JSON", 400);
+    if (parseError) return fail(parseError, { code: "INVALID_JSON", status: 400 });
 
     const name = String(body?.name ?? "").trim();
-    if (!name) return fail("Name is required", "VALIDATION_ERROR", 400);
+    if (!name) return fail("Name is required", { code: "VALIDATION_ERROR", status: 400 });
     const groupId = body?.groupId != null ? String(body.groupId).trim() || null : null;
-    if (groupId != null && !PREDEFINED_GROUP_IDS.includes(groupId)) return fail("Invalid group", "VALIDATION_ERROR", 400);
+    if (groupId != null && !PREDEFINED_GROUP_IDS.includes(groupId)) return fail("Invalid group", { code: "VALIDATION_ERROR", status: 400 });
     const defaultImageUrl = body?.defaultImageUrl != null ? String(body.defaultImageUrl).trim() || null : null;
 
     const customCategory = await prisma.customCategory.create({
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
   } catch (e) {
     logError("catalog/custom-categories/POST", e, { requestId, path: "/api/catalog/custom-categories", method: "POST" });
     const message = e instanceof Error ? e.message : "";
-    if (message === "Forbidden") return fail(message, "FORBIDDEN", 403);
-    return fail("Something went wrong", "INTERNAL_ERROR", 500, { requestId });
+    if (message === "Forbidden") return fail(message, { code: "FORBIDDEN", status: 403 });
+    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
   }
 }

@@ -45,7 +45,7 @@ export default async function CareBookingsPage() {
     <div className="mx-auto max-w-4xl px-4 py-8">
       <PageHeader
         title="Care bookings"
-        subtitle="Manage your care requests and bookings. Accept or decline requests as a caregiver, or cancel as a seeker."
+        subtitle="Manage your care requests and bookings. Accept or decline requests as a helper, or cancel as a seeker."
       />
       <div className="mt-6">
         <CareBookingsClient bookings={bookingRows} currentUserId={user.id} />

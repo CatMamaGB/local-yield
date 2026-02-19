@@ -13,7 +13,7 @@
 
 **Clear one-paragraph description of what the app does**
 
-The Local Yield is local economic infrastructure on one domain with two experiences. **Market**: buyers browse goods by ZIP/radius, add to cart, checkout (pickup or delivery); producers manage products, profile, orders, and see demand near them. **Care** (feature-flagged): seekers browse caregivers by location/species/service, view profiles with trust signals, and request bookings; caregivers manage listings and bookings. Shared backbone: one User table with role flags (isProducer, isBuyer, isCaregiver, isHomesteadOwner), location (ZIP + lib/geo), messaging (Conversation/Message), trust infrastructure (resolution window, structured reviews, admin moderation), and reviews (Market | Care). Stripe is stubbed and ready for wiring (no keys = no checkout).
+The Local Yield is local economic infrastructure on one domain with two experiences. **Market**: buyers browse goods by ZIP/radius, add to cart, checkout (pickup or delivery); producers manage products, profile, orders, and see demand near them. **Care** is always available alongside Market: seekers browse caregivers by location/species/service, view profiles with trust signals, and request bookings; caregivers manage listings and bookings. Shared backbone: one User table with role flags (isProducer, isBuyer, isCaregiver, isHomesteadOwner), location (ZIP + lib/geo), messaging (Conversation/Message), trust infrastructure (resolution window, structured reviews, admin moderation), and reviews (Market | Care). Stripe is stubbed and ready for wiring (no keys = no checkout).
 
 **Defined user roles (Buyer, Producer, Admin, etc.)**
 
@@ -27,7 +27,7 @@ Roles are stored as `User.role` (legacy) and `UserRole` join table; flags `isPro
 
 **Clear definition of MVP vs future features**
 
-- **MVP (current):** Market browse/shop/cart/checkout/order confirmation; producer dashboard (revenue, analytics, orders, products, profile, customers, records, events, reviews, messages); Care browse/caregiver profile/booking (when `NEXT_PUBLIC_ENABLE_CARE=true`); auth (Clerk or dev stub); item requests; reviews with resolution window and admin moderation; messaging for orders/care.
+- **MVP (current):** Market browse/shop/cart/checkout/order confirmation; producer dashboard (revenue, analytics, orders, products, profile, customers, records, events, reviews, messages); Care browse/caregiver profile/booking (Care is always available alongside Market); auth (Clerk or dev stub); item requests; reviews with resolution window and admin moderation; messaging for orders/care.
 - **Future:** Stripe checkout and payouts; weekly box subscriptions UI; PWA/mobile app tabs and deep links; split payouts/escrow for Care.
 
 **Monetization model documented**
@@ -71,7 +71,7 @@ Roles are stored as `User.role` (legacy) and `UserRole` join table; flags `isPro
 
 - **Hosting provider:** [Insert e.g. Vercel]
 - **Environment variable list (names only):**  
-  `DATABASE_URL`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_ENABLE_CARE`, `NEXT_PUBLIC_ENABLE_DEV_TOOLS`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `NEXT_PUBLIC_APP_URL` (optional; used for messages base URL). Optional Supabase: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
+  `DATABASE_URL`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_ENABLE_DEV_TOOLS`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `NEXT_PUBLIC_APP_URL` (optional; used for messages base URL). Optional Supabase: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
 - **Production and development separated:** `NODE_ENV` used (e.g. dev stub auth only when not production; cookie `secure` in production). Clerk middleware active only when Clerk env vars set.
 - **Deployment process:** [Auditor: document — e.g. Git push → Vercel build → migrate/seed policy.]
 

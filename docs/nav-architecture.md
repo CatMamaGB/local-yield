@@ -6,13 +6,13 @@ How all nav-related components interact and when each appears. **Strict rule:** 
 
 ## 1. Rules (single source of truth)
 
-- **Navbar** = brand + global actions only: logo, mode switcher (if multi-mode), account (Dashboard, Admin if admin, Sign out). On **public** routes it also shows primary links (Browse, Care, About, Cart). **No** dashboard or admin section links in Navbar.
+- **Navbar** = brand + global actions only: logo, primary links (Browse, Care, About, Cart) on public routes, **Account** dropdown when logged in. **Switch mode** (Market | Sell | Care) appears **only inside the Account menu** when `isMultiMode` (2+ capabilities beyond Buyer). Account menu: Switch mode (if multi-mode), Profile, Admin (if admin), Sign out.
 - **DashboardNav** = all producer/seller dashboard navigation. Two-tier layout (primary tabs + secondary row). Shown only on `/dashboard/*` when `getUserCapabilities(user).canSell`.
 - **BuyerDashboardNav** = buyer dashboard navigation. Single “Menu” trigger with mega dropdown. Shown only on `/dashboard/*` when `!canSell`.
 - **AdminNav** = all admin navigation. “← Dashboard” + “Sections” dropdown (mega menu). Shown only on `/admin/*`. Admin layout **enforces auth**: non-admins are redirected before the shell renders.
-- **App area** = `/dashboard/*` or `/admin/*`. In app area, Navbar shows **minimal**: logo + mode switcher + account. No market nav (Browse/Care/About/Cart).
+- **App area** = `/dashboard/*` or `/admin/*`. In app area, Navbar shows **minimal**: logo + Account (Switch mode inside when isMultiMode). No market nav (Browse/Care/About/Cart).
 - **Chrome hide** = routes in `HIDE_CHROME_ROUTES` (`/auth`, `/invite`, `/reset-password`) get no Navbar and no Footer.
-- **Role/capabilities** = `getUserCapabilities(user)` from `lib/authz` everywhere (Navbar, dashboard layout). Returns `{ canSell, canAdmin, canCare, isMultiMode }`.
+- **Role/capabilities** = `getUserCapabilities(user)` from `lib/authz` everywhere (Navbar, dashboard layout). Returns `{ canSell, canBuy, canAdmin, canOfferHelp, canHireHelp, canCare, isMultiMode }`. Multi-mode = 2+ of (Sell, Offer help, Hire help).
 
 ---
 
@@ -30,7 +30,7 @@ app/layout.tsx (root)
 │       │   OR BuyerDashboardNav()   ← when !canSell
 │       │   └── <main>{children}</main>
 │       └── /admin/*     →  app/admin/layout.tsx:
-│           ├── getCurrentUser(); redirect if !user or !canAdmin
+│           ├── getCurrentUser(); if !canAdmin show 403 view (middleware returns 403 in dev)
 │           ├── AdminNav()
 │           └── <main>{children}</main>
 └── FooterWrapper()
@@ -131,14 +131,14 @@ NAV.buyer      → { variant: "mega", sections: BUYER_MEGA_NAV }
 
 ### Navbar (main header)
 
-- **Always (when visible):** Logo, optional Mode Switcher (Market | Sell | Care).
-- **When public:** Browse, Care, About, Cart (when buyer), account (Sign in, Sign up or Dashboard, Admin?, Sign out).
-- **When app area:** Only logo + mode switcher + account.
+- **Always (when visible):** Logo; Account dropdown (when logged in) with Switch mode inside only when isMultiMode.
+- **When public:** Browse, Care, About, Cart (when buyer), account (Sign in, Sign up or Account dropdown, Sign out).
+- **When app area:** Only logo + Account (Switch mode inside when isMultiMode).
 
 ### DashboardNav (producer)
 
 - **Primary row:** Revenue, Customers, Sales Analytics, Orders, Messages (badges).
-- **Secondary row:** Profile, Products, Events, Reviews, Records; Care bookings, Subscriptions when enabled. Supports `external` and `disabled` per item.
+- **Secondary row:** Profile, Products, Events, Reviews, Records; Care bookings (when user has care capability), Subscriptions. Supports `external` and `disabled` per item.
 
 ### BuyerDashboardNav (buyer)
 
@@ -174,7 +174,22 @@ NAV.buyer      → { variant: "mega", sections: BUYER_MEGA_NAV }
 
 ---
 
-## 7. Mode switcher mapping
+## 7. Redirects & lastActiveMode
+
+Post-login and post-onboarding redirects use **lastActiveMode** so multi-mode users land where they left off. The value is persisted in the **`__last_active_mode`** cookie:
+
+- **Set on route entry:** Each mode root layout sets the cookie when the user visits that area: `app/market/layout.tsx` → `MARKET`, `app/care/layout.tsx` → `CARE`, `app/dashboard/layout.tsx` → `SELL`.
+- **Set on explicit switch:** When the user chooses Account → Switch mode, `PATCH /api/auth/primary-mode` updates the cookie.
+
+Redirect priority (see `lib/redirects.ts`): **next=** (validated safe path) → cart checkout → lastActiveMode → `/market/browse`.
+
+**next= open-redirect protection:** All `next=` / `requestedUrl` values are validated via `sanitizeNextPath()` / `isSafeRedirect()`: must be a relative path starting with `/`, not `//`, no protocol (http/https), and **not** under `/auth/*` (avoids redirect loops). Only `/market`, `/dashboard`, `/care`, `/admin` (and their subpaths) are allowed.
+
+**Admin deep link:** Unauthenticated visit to `/admin/*` redirects to `/auth/login?next=/admin`. After login, admins land on `/admin`; non-admins land on `/admin` and see 403 (no next= is stripped for non-admins; they simply see the forbidden view and can use “Back to dashboard”). Onboarding has “Back” and “Save & finish later” (uses `GET /api/auth/post-login-redirect`) so users can bail out without completing.
+
+---
+
+## 8. Mode switcher mapping
 
 - **Market** → `/market/*`
 - **Sell** → `/dashboard/*`
@@ -184,7 +199,7 @@ Sub-navs hold all section links; Navbar does not.
 
 ---
 
-## 8. File reference
+## 9. File reference
 
 | Component / logic     | File                               | Used in                    |
 |-----------------------|------------------------------------|----------------------------|

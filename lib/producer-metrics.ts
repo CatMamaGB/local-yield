@@ -245,3 +245,40 @@ export async function getRevenueForPeriod(
   const revenue = (agg._sum?.totalCents ?? 0) / 100;
   return { revenue, orderCount: count };
 }
+
+/**
+ * Revenue by day for a date range (for simple charts). Each day is start of day (local).
+ * Returns array of { date: "YYYY-MM-DD", revenue }.
+ */
+export async function getRevenueByDayForPeriod(
+  producerId: string,
+  startDate: Date,
+  endDate: Date
+): Promise<{ date: string; revenue: number }[]> {
+  const orders = await prisma.order.findMany({
+    where: {
+      producerId,
+      status: { in: PAID_OR_FULFILLED },
+      createdAt: { gte: startDate, lt: endDate },
+    },
+    select: { createdAt: true, totalCents: true },
+  });
+
+  const byDay = new Map<string, number>();
+  for (const o of orders) {
+    const d = o.createdAt.toISOString().slice(0, 10);
+    byDay.set(d, (byDay.get(d) ?? 0) + (o.totalCents ?? 0) / 100);
+  }
+
+  const result: { date: string; revenue: number }[] = [];
+  const cur = new Date(startDate);
+  cur.setHours(0, 0, 0, 0);
+  const end = new Date(endDate);
+  end.setHours(0, 0, 0, 0);
+  while (cur < end) {
+    const key = cur.toISOString().slice(0, 10);
+    result.push({ date: key, revenue: byDay.get(key) ?? 0 });
+    cur.setDate(cur.getDate() + 1);
+  }
+  return result;
+}

@@ -19,6 +19,6 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     logError("catalog/categories/GET", e, { requestId, path: "/api/catalog/categories", method: "GET" });
     const message = e instanceof Error ? e.message : "Forbidden";
-    return fail(message, "FORBIDDEN", 403);
+    return fail(message, { code: "FORBIDDEN", status: 403 });
   }
 }

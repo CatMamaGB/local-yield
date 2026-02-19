@@ -135,7 +135,7 @@ Comparison of the product requirements master list against the current codebase.
 | Booking flow (search, filter, dates, visit type, price, confirm) | ❌ | No CareBooking or booking API |
 | Booking management (upcoming, cancel, message, review) | ❌ | — |
 | Visit execution (start, checklist, notes, photos, complete, notify) | ❌ | No Visit/Checklist model or flow |
-| Care feature flag | ✅ | `isCareEnabled()` in `lib/feature-flags.ts`; Care pages redirect when off |
+| Care availability | ✅ | Care is always available alongside Market; access to booking/post-job is controlled by authz (user capabilities). |
 
 **Schema:** Orders and Bookings are separate (Order exists; CareBooking not yet in schema). Messaging and Reviews are generic and support Care when you add the Care models.
 
@@ -168,7 +168,7 @@ Comparison of the product requirements master list against the current codebase.
 | View disputes | ❌ | — |
 | Review reports/flags | ❌ | — |
 | Region management | ❌ | — |
-| Feature flag management (hide Care) | 🟡 | Care hidden via env `NEXT_PUBLIC_ENABLE_CARE`; no admin UI to toggle |
+| Feature flag management | — | Care is always on; no feature-flag toggles. Admin/ops use authz and capabilities. |
 | Admin: hide review | ✅ | POST `/api/admin/reviews/[id]/hide` + Admin reviews page |
 
 ---
@@ -205,7 +205,7 @@ Comparison of the product requirements master list against the current codebase.
 |-------|-----------|--------|
 | **Shared** | Auth, roles, Stripe, messaging, notifications | Auth stub only; Stripe stub; messaging DB + lib, no API/UI; notifications missing |
 | **Market** | Profiles, products, cart, checkout, order dashboard | Profiles/products partial; no cart/checkout; order dashboard exists |
-| **Care** | Profiles, booking, checklist, photo report, payment | Not built (beyond feature flag and placeholders) |
+| **Care** | Profiles, booking, checklist, photo report, payment | Profiles, booking, messaging in place; checklist/photo report/payment not built. |
 
 ---
 

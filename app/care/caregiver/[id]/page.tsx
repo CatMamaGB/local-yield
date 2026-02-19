@@ -4,34 +4,20 @@
 
 import { notFound } from "next/navigation";
 import { getCaregiverProfile } from "@/lib/care";
+import { getAggregateRatingForReviewee } from "@/lib/reviews";
 import { BookingForm } from "./BookingForm";
+import { ProfileViewTracker } from "./ProfileViewTracker";
+import { CaregiverActions } from "./CaregiverActions";
 import { getCurrentUser } from "@/lib/auth";
+import { SERVICE_TYPE_LABELS, SPECIES_LABELS } from "@/lib/care/labels";
 import type { AnimalSpecies, CareServiceType, CareTaskType, ExperienceBackground } from "@prisma/client";
 
 interface CaregiverPageProps {
   params: Promise<{ id: string }>;
 }
 
-// UI labels (i18n-friendly structure)
+// UI labels for tasks and experience (species/serviceType from @/lib/care/labels)
 const LABELS = {
-  species: {
-    HORSES: "Horses",
-    CATTLE: "Cattle",
-    GOATS: "Goats",
-    SHEEP: "Sheep",
-    PIGS: "Pigs",
-    POULTRY: "Poultry",
-    ALPACAS: "Alpacas",
-    LLAMAS: "Llamas",
-    DONKEYS: "Donkeys",
-    OTHER: "Other",
-  },
-  serviceType: {
-    DROP_IN: "Drop-in visits",
-    OVERNIGHT: "Overnight care",
-    BOARDING: "Boarding",
-    FARM_SITTING: "Farm sitting",
-  },
   tasks: {
     FEEDING: "Feeding",
     WATERING: "Watering",
@@ -75,18 +61,25 @@ export default async function CaregiverProfilePage({ params }: CaregiverPageProp
   }
 
   const { caregiverProfile, listings, reviews } = profile;
+  const aggregate = await getAggregateRatingForReviewee(id, { type: "CARE" });
 
   return (
     <div className="min-h-screen bg-brand-light">
+      <ProfileViewTracker caregiverId={id} viewerId={user?.id} />
       <div className="mx-auto max-w-5xl px-4 py-10">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="font-display text-3xl font-semibold text-brand leading-tight">
-            {profile.name || "Caregiver"}
-          </h1>
-          {profile.zipCode && (
-            <p className="mt-1 text-brand/80">Location: {profile.zipCode}</p>
-          )}
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="font-display text-3xl font-semibold text-brand leading-tight">
+                {profile.name || "Helper"}
+              </h1>
+              {profile.zipCode && (
+                <p className="mt-1 text-brand/80">Location: {profile.zipCode}</p>
+              )}
+            </div>
+            <CaregiverActions caregiverId={id} />
+          </div>
         </div>
 
         <div className="grid gap-8 lg:grid-cols-3">
@@ -131,7 +124,7 @@ export default async function CaregiverProfilePage({ params }: CaregiverPageProp
                           key={species}
                           className="rounded-full bg-sky-100 px-3 py-1 text-sm font-medium text-sky-800"
                         >
-                          {LABELS.species[species as AnimalSpecies] || species}
+                          {SPECIES_LABELS[species as AnimalSpecies] ?? species}
                         </span>
                       ))}
                     </div>
@@ -205,7 +198,7 @@ export default async function CaregiverProfilePage({ params }: CaregiverPageProp
                     <div key={listing.id} className="border-b border-brand/10 pb-4 last:border-0 last:pb-0">
                       <h3 className="font-semibold text-brand">{listing.title}</h3>
                       <p className="text-sm text-brand/80 mt-1">
-                        {LABELS.serviceType[listing.serviceType]}
+                        {SERVICE_TYPE_LABELS[listing.serviceType]}
                       </p>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {listing.speciesSupported.map((species) => (
@@ -213,7 +206,7 @@ export default async function CaregiverProfilePage({ params }: CaregiverPageProp
                             key={species}
                             className="rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-medium text-sky-800"
                           >
-                            {LABELS.species[species as AnimalSpecies] || species}
+                            {SPECIES_LABELS[species as AnimalSpecies] ?? species}
                           </span>
                         ))}
                       </div>
@@ -229,11 +222,17 @@ export default async function CaregiverProfilePage({ params }: CaregiverPageProp
               </section>
             )}
 
-            {reviews.length > 0 && (
+            {(reviews.length > 0 || aggregate.count > 0) && (
               <section className="rounded-xl border border-brand/10 bg-white p-6 shadow-farmhouse">
                 <h2 className="font-display text-xl font-semibold text-brand mb-4 leading-tight">
-                  Reviews ({reviews.length})
+                  Reviews & reputation
                 </h2>
+                {aggregate.count > 0 && (
+                  <p className="text-sm text-brand/80 mb-4">
+                    <span className="font-medium text-brand">{"⭐".repeat(Math.round(aggregate.averageRating ?? 0))}</span>{" "}
+                    {aggregate.averageRating?.toFixed(1)} ({aggregate.count} review{aggregate.count !== 1 ? "s" : ""})
+                  </p>
+                )}
                 <div className="space-y-4">
                   {reviews.map((review) => (
                     <div key={review.id} className="border-b border-brand/10 pb-4 last:border-0 last:pb-0">

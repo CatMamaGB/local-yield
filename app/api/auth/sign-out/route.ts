@@ -3,14 +3,15 @@
  */
 
 import { NextRequest } from "next/server";
-import { ok } from "@/lib/api";
+import { ok, withRequestId } from "@/lib/api";
 import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
-  const rateLimitRes = await checkRateLimit(request, RATE_LIMIT_PRESETS.AUTH);
+  const requestId = withRequestId(request);
+  const rateLimitRes = await checkRateLimit(request, RATE_LIMIT_PRESETS.AUTH, requestId);
   if (rateLimitRes) return rateLimitRes;
 
-  const res = ok(undefined);
+  const res = ok(undefined, requestId);
   res.cookies.set("__dev_user", "", { path: "/", maxAge: 0 });
   res.cookies.set("__dev_user_id", "", { path: "/", maxAge: 0 });
   res.cookies.set("__dev_zip", "", { path: "/", maxAge: 0 });

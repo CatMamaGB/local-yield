@@ -7,24 +7,41 @@
 
 import { useState } from "react";
 import { isValidZip } from "@/lib/utils";
+import { RADIUS_OPTIONS } from "@/lib/geo/constants";
 
 export interface LocationInputProps {
   defaultZip?: string;
   defaultRadius?: number;
+  /** Controlled: parent owns zip/radius and syncs from URL. */
+  zip?: string;
+  radius?: number;
+  onZipChange?: (zip: string) => void;
+  onRadiusChange?: (radius: number) => void;
   onSelect?: (zip: string, radiusMiles?: number) => void;
-  /** Submit button label (e.g. "Search caregivers" for Care, "Update location" for Market). */
+  /** Submit button label (e.g. "Search helpers" for Care, "Update location" for Market). */
   submitLabel?: string;
 }
 
 export function LocationInput({
   defaultZip = "",
   defaultRadius = 10,
+  zip: valueZip,
+  radius: valueRadius,
+  onZipChange,
+  onRadiusChange,
   onSelect,
   submitLabel = "Update location",
 }: LocationInputProps) {
-  const [zip, setZip] = useState(defaultZip);
-  const [radius, setRadius] = useState(defaultRadius);
+  const [internalZip, setInternalZip] = useState(defaultZip);
+  const [internalRadius, setInternalRadius] = useState(defaultRadius);
   const [zipError, setZipError] = useState<string | null>(null);
+
+  const isControlled = valueZip !== undefined;
+  const zip = isControlled ? valueZip : internalZip;
+  const radius = isControlled && valueRadius !== undefined ? valueRadius : internalRadius;
+
+  const setZip = (v: string) => (onZipChange ? onZipChange(v) : setInternalZip(v));
+  const setRadius = (v: number) => (onRadiusChange ? onRadiusChange(v) : setInternalRadius(v));
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -38,7 +55,7 @@ export function LocationInput({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-3 md:grid-cols-12 md:gap-4 md:items-end">
+    <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-12 md:items-start">
       <div className="md:col-span-5">
         <label htmlFor="zip" className="block text-sm font-medium text-brand mb-1.5">
           Your ZIP code
@@ -70,16 +87,17 @@ export function LocationInput({
           onChange={(e) => setRadius(Number(e.target.value))}
           className="h-10 w-full rounded-lg border border-brand/20 px-3 py-2 text-brand focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/20"
         >
-          {[5, 10, 25, 50].map((n) => (
+          {RADIUS_OPTIONS.map((n) => (
             <option key={n} value={n}>{n}</option>
           ))}
         </select>
       </div>
 
-      <div className="md:col-span-4 flex justify-end md:justify-end">
+      <div className="md:col-span-4 flex flex-col">
+        <span className="block h-5 mb-1.5 shrink-0" aria-hidden="true" />
         <button
           type="submit"
-          className="h-10 rounded-lg bg-brand-accent px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-brand-accent/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent focus-visible:ring-offset-2"
+          className="h-10 w-full rounded-lg bg-brand-accent px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-brand-accent/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent focus-visible:ring-offset-2 sm:w-auto"
         >
           {submitLabel}
         </button>
