@@ -8,7 +8,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SignupForm } from "./SignupForm";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 import { apiPost } from "@/lib/client/api-client";
+import { formatApiError } from "@/lib/client/error-format";
 
 type Mode = "sign-in" | "sign-up";
 type DevRole = "BUYER" | "PRODUCER" | "ADMIN";
@@ -24,6 +26,7 @@ export function AuthForm({ mode, requestedUrl }: AuthFormProps) {
   const [role, setRole] = useState<DevRole | null>(mode === "sign-up" ? null : "BUYER");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorRequestId, setErrorRequestId] = useState<string | null>(null);
 
   if (mode === "sign-up") {
     return <SignupForm requestedUrl={requestedUrl} />;
@@ -33,6 +36,7 @@ export function AuthForm({ mode, requestedUrl }: AuthFormProps) {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setErrorRequestId(null);
     try {
       const r = role ?? "BUYER";
       const url = requestedUrl
@@ -47,7 +51,9 @@ export function AuthForm({ mode, requestedUrl }: AuthFormProps) {
       router.push("/auth/onboarding");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      const { message, requestId } = formatApiError(err);
+      setError(message);
+      setErrorRequestId(requestId ?? null);
     } finally {
       setLoading(false);
     }
@@ -84,9 +90,12 @@ export function AuthForm({ mode, requestedUrl }: AuthFormProps) {
           </div>
         </div>
         {error && (
-          <p className="text-sm text-brand-terracotta" role="alert">
+          <InlineAlert variant="error" title="Sign-in failed">
             {error}
-          </p>
+            {errorRequestId && (
+              <p className="mt-1 text-xs opacity-80">Request ID: {errorRequestId}</p>
+            )}
+          </InlineAlert>
         )}
         <button
           type="submit"

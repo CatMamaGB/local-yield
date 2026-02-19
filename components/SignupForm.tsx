@@ -10,7 +10,9 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { RoleSelection, type SignUpRoleId } from "./RoleSelection";
 import { ZipCodeInput } from "./ZipCodeInput";
+import { InlineAlert } from "@/components/ui/InlineAlert";
 import { apiPost } from "@/lib/client/api-client";
+import { formatApiError } from "@/lib/client/error-format";
 import { logTelemetry } from "@/lib/telemetry/telemetry";
 
 export interface SignupFormProps {
@@ -37,6 +39,7 @@ export function SignupForm({ requestedUrl }: SignupFormProps = {}) {
   const [state, setState] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorRequestId, setErrorRequestId] = useState<string | null>(null);
 
   const allowedModes = useMemo(() => {
     const hasProducer = roles.includes("PRODUCER");
@@ -52,6 +55,7 @@ export function SignupForm({ requestedUrl }: SignupFormProps = {}) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setErrorRequestId(null);
     const zip = zipCode.trim().slice(0, 5);
     const hasValidZip = /^\d{5}$/.test(zip);
     if (!name.trim()) {
@@ -94,7 +98,9 @@ export function SignupForm({ requestedUrl }: SignupFormProps = {}) {
       router.push(redirectTo);
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      const { message, requestId } = formatApiError(err);
+      setError(message);
+      setErrorRequestId(requestId ?? null);
     } finally {
       setLoading(false);
     }
@@ -200,7 +206,12 @@ export function SignupForm({ requestedUrl }: SignupFormProps = {}) {
         </details>
 
         {error && (
-          <p className="text-sm text-red-600" role="alert">{error}</p>
+          <InlineAlert variant="error" title="Sign-up failed">
+            {error}
+            {errorRequestId && (
+              <p className="mt-1 text-xs opacity-80">Request ID: {errorRequestId}</p>
+            )}
+          </InlineAlert>
         )}
         <button
           type="submit"

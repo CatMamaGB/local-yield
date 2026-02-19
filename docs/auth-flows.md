@@ -1,13 +1,15 @@
 # Sign-in and sign-up flows
 
-Auth is **provider-driven**: when Clerk env vars are set, Clerk handles UI and session; otherwise dev mode uses cookie-based stub auth.
+Auth is **provider-driven** and **deterministic**: when Clerk env vars are set, only Clerk login/signup UI is shown; otherwise only the dev role-picker UI is shown. The two are never shown at the same time.
 
 ---
 
 ## 1. Is Clerk configured?
 
-- **Yes:** `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` are both set.
-- **No:** Dev mode (cookie-based, `__dev_user` / `__dev_user_id` + `__dev_zip`).
+- **Yes:** `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` are both set → **Clerk** login/signup pages only.
+- **No:** **Dev mode** (cookie-based, `__dev_user` / `__dev_user_id` + `__dev_zip`).
+
+**Optional (local only):** With Clerk configured but **not** in production, you can force the dev UI with `?auth=dev` (e.g. `/auth/login?auth=dev`, `/auth/signup?auth=dev`). In production this query param is ignored and Clerk is always used.
 
 ---
 
@@ -26,12 +28,23 @@ Auth is **provider-driven**: when Clerk env vars are set, Clerk handles UI and s
 2. **Form:** Single-role radio (BUYER, PRODUCER, ADMIN). Submit calls:
    - **`POST /api/auth/dev-login`**  
      - Body: `{ role: "BUYER" | "PRODUCER" | "ADMIN" }`.
-     - Upserts **stub user** in DB (fixed IDs: `stub-buyer-1`, `stub-producer-1`, `stub-admin-1`).
-     - Sets cookie **`__dev_user`** = role (7 days).
-     - Response: `{ redirect: "/auth/onboarding" }`.
+     - **Upserts by stub email** (e.g. `producer@test.localyield.example`) so seed-created users work; syncs role in same transaction. No duplicate-email constraint failure.
+     - Sets cookie **`__dev_user_id`** = returned user id (CUID), **`__dev_user`** = role (7 days). Cookie options: path=/, httpOnly, sameSite=lax, secure only in production.
+     - Response: `{ redirect }` to `/auth/onboarding?from=login` (or with safe `next=`) if not onboarded, else post-login default. All errors return `{ ok: false, error, code, requestId }`; no raw Prisma leak.
 3. **Client:** On success, `router.push(data.redirect)` → **`/auth/onboarding`** (or `/dashboard` if no redirect in body; current API always returns redirect to onboarding).
 
-So: **Dev sign-in → /api/auth/dev-login → set __dev_user → redirect to /auth/onboarding.**
+So: **Dev sign-in → /api/auth/dev-login → set __dev_user_id + __dev_user → redirect to /auth/onboarding** (or `next=` / lastActiveMode / market).
+
+**Cookie/session:** Dev login upserts user by **stub email** (so seed-created users work). It sets `__dev_user_id` (user id) and `__dev_user` (role). `getCurrentUser()` in `lib/auth/server.ts` reads `__dev_user_id` and loads the user from DB; if missing, falls back to `__dev_user` + stub object.
+
+### Redirect consistency
+
+- **Safe `?next=`:** All auth entry points (login, signup) accept `?next=<path>`. Only **safe internal paths** are used (e.g. `/market`, `/dashboard`, `/care`, `/admin` and subpaths). Auth paths and external URLs are rejected.
+- **Logged in but not onboarded:** User is always sent to **`/auth/onboarding?next=...`** (or without `next=` if none). After onboarding, the app uses normal redirect logic (requested `next=`, cart, lastActiveMode, or default).
+
+### Error handling (auth UI)
+
+- **AuthForm (sign-in):** On API failure, the form shows an **InlineAlert** (error variant) with the API message and **Request ID** for support. Failed login does not log to the console from the client.
 
 ### Dev auth (no Clerk)
 
@@ -39,6 +52,15 @@ So: **Dev sign-in → /api/auth/dev-login → set __dev_user → redirect to /au
 - **Password reset:** Available only when Clerk is enabled (staging/prod).
 - **Testing redirects:** Use `/auth/login?next=/dashboard/orders` to verify `next=` behavior and post-login routing.
 - **Reset onboarding (dev-only):** Use **POST /api/dev/reset-onboarding** to clear `termsAcceptedAt` and `onboardingCompletedAt` and re-test onboarding. Optional body: `{ "clearZip": true }` to also clear ZIP.
+- **Debug (dev-only):** **GET /api/auth/debug** returns `{ currentUser, cookies }` to confirm dev login. **Security:** In production (`NODE_ENV === "production"`) the route always returns **404**. In development it also returns 404 unless **`DEV_DEBUG=true`** is set in the environment (optional extra guard).
+
+### Dev login manual test checklist (5 steps)
+
+1. **Go to** `/auth/login`.
+2. **Select** PRODUCER (or BUYER / ADMIN).
+3. **Click** “Sign in”.
+4. **Confirm** redirect to `/auth/onboarding` or `next=` if provided; no 500. In DevTools → Application → Cookies, confirm `__dev_user_id` and `__dev_user` are set (path `/`, HttpOnly).
+5. **Refresh** the page or open `/dashboard` — you should still be logged in. Optional: open **GET /api/auth/debug** in a new tab and confirm `currentUser` is non-null and `cookies.__dev_user_id` is set.
 
 ---
 
@@ -74,7 +96,7 @@ So: **Dev sign-up → /api/auth/dev-signup → create user, set __dev_user_id + 
   - Calls `getCurrentUser()`. If **no user** → **redirect `/auth/login`**.
   - If user has **zipCode set and ≠ "00000"** → redirect:
     - **Producer/Admin:** `/dashboard`
-    - **Else:** `/market/browse`
+    - **Else:** `/market/browse` (listings page; post-login default). **Navbar** “Browse” goes to **`/market`** (hub).
   - Else → render **`<OnboardingClient />`**.
 
 ### Onboarding form (Clerk and Dev)
@@ -91,7 +113,7 @@ So: **Dev sign-up → /api/auth/dev-signup → create user, set __dev_user_id + 
   - Body: `{ zipCode: string, roles?: ("BUYER"|"PRODUCER"|"CAREGIVER"|"CARE_SEEKER")[] }`.
   - Updates user: `zipCode`; if `roles` provided, updates `isBuyer`, `isProducer`, `isCaregiver`, `isHomesteadOwner` and primary `role` (never ADMIN).
   - Sets cookie **`__dev_zip`** = zip (when in dev).
-  - Returns **`{ redirect }`**: `/dashboard` if producer/admin or isProducer, else `/market/browse`.
+  - Returns **`{ redirect }`**: `/dashboard` if producer/admin or isProducer, else `/market/browse`. (Navbar “Browse” links to `/market`; `/market/browse` is the results page.)
 
 Flow: **Onboarding page → OnboardingClient → POST /api/auth/onboarding → set zip (and optionally roles) → redirect to /dashboard or /market/browse.**
 
@@ -172,8 +194,21 @@ Before going live, verify in the **Clerk Dashboard**:
 | Dev signup API       | `app/api/auth/dev-signup/route.ts` |
 | Onboarding API       | `app/api/auth/onboarding/route.ts` |
 | Sign-out API         | `app/api/auth/sign-out/route.ts` |
-| Shared auth form     | `components/AuthForm.tsx` |
+| Shared auth form     | `components/AuthForm.tsx` (sign-in: InlineAlert + requestId on API failure; no console errors on failed login) |
 | Role selection (multi)| `components/RoleSelection.tsx` |
 | Role picker (single) | `components/RolePicker.tsx` |
 | Sign-out button      | `components/SignOutButton.tsx` |
 | Session / get user   | `lib/auth.ts` (`getCurrentUser`, `syncClerkUserToDb`, stub handling) |
+| Error formatting     | `lib/client/error-format.ts` (`formatApiError`) — used by AuthForm and SignupForm |
+
+---
+
+## 9. Manual test checklist (pass before release)
+
+Use this to verify dev auth and error UX end-to-end.
+
+1. **Dev login (no 500):** Visit `/auth/login`. Select PRODUCER, click “Sign in”. Expect: no 500; cookies `__dev_user_id` and `__dev_user` set; redirect to `/auth/onboarding` if not onboarded (or to safe `next=` or default).
+2. **Session persists:** After signing in, refresh `/dashboard/products` (or `/dashboard`) — you should stay logged in.
+3. **Error UX:** Trigger an invalid request (e.g. send invalid body to dev-login or hit a rate limit). Expect: **InlineAlert** with error message and **Request ID** when present; no `alert()`; no console.error for the failure.
+4. **Debug route (dev):** With `DEV_DEBUG=true` in env, **GET /api/auth/debug** returns `{ currentUser, cookies }` (e.g. `cookies.__dev_user_id`). Without `DEV_DEBUG=true`, same route returns 404.
+5. **Debug route (production):** Run a production build and request **GET /api/auth/debug** — must return **404**.

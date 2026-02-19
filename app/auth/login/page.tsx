@@ -14,15 +14,19 @@ const clerkConfigured = Boolean(
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; auth?: string }>;
 }) {
-  const rawNext = (await searchParams).next;
+  const params = await searchParams;
+  const rawNext = params.next;
   const requestedUrl = sanitizeNextPath(rawNext);
   const afterSignInUrl = requestedUrl
     ? `/auth/onboarding?from=login&next=${encodeURIComponent(requestedUrl)}`
     : "/auth/onboarding?from=login";
 
-  if (clerkConfigured) {
+  const forceDevAuth = process.env.NODE_ENV !== "production" && params.auth === "dev";
+  const showClerk = clerkConfigured && !forceDevAuth;
+
+  if (showClerk) {
     return (
       <div className="w-full max-w-md space-y-4">
         <SignIn

@@ -27,13 +27,15 @@ For **staging**, you can gate the app with HTTP Basic Auth. When `APP_GATE_ENABL
 
 - **Frontend:** Next.js 16 (App Router) + Tailwind CSS + TypeScript
 - **Backend / DB:** Node.js + PostgreSQL + Prisma ORM
-- **Auth:** Custom auth system with session management, role-based access, and primary mode switching
+- **Auth:** Clerk in production (when configured); dev role-picker with cookie-based session when not. Deterministic UI: never both at once. See [docs/auth-flows.md](docs/auth-flows.md).
 - **Payments:** Stripe Checkout (local pickup option)
 - **File uploads:** Cloudinary (to be wired)
 - **Location:** ZIP code radius-based matching
 - **State Management:** React hooks + server actions
 - **Rate Limiting:** Upstash Redis for API rate limiting
 - **Logging:** Request ID tracking and structured logging utilities
+
+**Security:** Dependency advisories are tracked and documented. Production deps are kept free of high/critical issues; dev-only moderate findings are accepted with a documented decision. See **[docs/security-audit.md](docs/security-audit.md)**. Run `npm run audit:ci` in CI to fail only on high/critical.
 
 ## Setup
 
@@ -67,14 +69,13 @@ For **staging**, you can gate the app with HTTP Basic Auth. When `APP_GATE_ENABL
    ```
    This creates test users: `buyer@test.localyield.example`, `producer@test.localyield.example`, `admin@test.localyield.example`.
    
-   **Dev login (development only):**
-   - Visit `/api/auth/dev-login` to sign in as any seeded user
-   - Visit `/api/auth/dev-signup` to create a new test user with role selection
+   **Auth UI (deterministic):** If Clerk env vars are set (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`), login/signup show Clerk. Otherwise they show the **dev role-picker**. Never both. Optional: in dev only, use `?auth=dev` (e.g. `/auth/login?auth=dev`) to force the dev UI when Clerk is configured.
    
-   **Production auth flow:**
-   - Users sign up at `/sign-up` with role selection (buyer/producer/caregiver)
-   - Complete onboarding at `/auth/onboarding` with role-specific setup
-   - Users with multiple roles can switch their primary mode in the navbar
+   **Dev login (development only):** Visit `/auth/login` → choose role (BUYER/PRODUCER/ADMIN) → Sign in. The form POSTs to `/api/auth/dev-login`, which upserts by stub email (works with seed users), sets `__dev_user_id` and `__dev_user` cookies, and redirects to onboarding or a safe `?next=` path. Signup: `/auth/signup` → full form → POST `/api/auth/signup` or dev-signup depending on config.
+   
+   **Production (Clerk):** Users sign in at `/auth/login` and sign up at `/auth/signup`; after auth, complete onboarding at `/auth/onboarding`. Safe `?next=` is honored. Users with multiple roles can switch primary mode in the navbar.
+   
+   **Manual test checklist:** See [docs/auth-flows.md §9](docs/auth-flows.md) for the full checklist (dev login, session persistence, error UX, debug route).
 
 ## Mobile app and web parity
 
@@ -107,6 +108,10 @@ The application uses PostgreSQL with Prisma ORM. Key models include:
 - Producer business pages and event hours
 - Primary mode and multi-role user support
 - User identity and platform usage tracking
+
+## Codebase quality
+
+The repo is structured for production: App Router by feature, domain-oriented `lib/` modules, shared `types/`, and consistent API/client patterns. For a **structure and cleanliness audit** (what’s in good shape, dead code removed, and optional improvements), see **[docs/project-structure-audit.md](docs/project-structure-audit.md)**.
 
 ## Project structure (web)
 
@@ -317,6 +322,7 @@ The application uses PostgreSQL with Prisma ORM. Key models include:
 - `npm run test:help-exchange` — test help-exchange API
 - `npm run test:booking-idempotency` — test booking idempotency
 - `npm run audit:api-contracts` — audit API contracts
+- `npm run audit:ci` — fail only on high/critical advisories (use in CI)
 - `npx prisma generate` — generate Prisma client
 - `npx prisma migrate dev` — create/apply migrations
 - `npx prisma db seed` — seed development data
@@ -326,6 +332,7 @@ The application uses PostgreSQL with Prisma ORM. Key models include:
 Detailed documentation is available in the `/docs` folder:
 
 - **[PROJECT-SUMMARY.md](docs/PROJECT-SUMMARY.md)** — Full project summary: routes, APIs, file structure, health
+- **[project-structure-audit.md](docs/project-structure-audit.md)** — Codebase cleanliness and organization (what’s in good shape, dead code, optional improvements)
 - **[product-vision.md](docs/product-vision.md)** — Product vision and core principles
 - **[auth-flows.md](docs/auth-flows.md)** — Authentication and authorization flows
 - **[nav-architecture.md](docs/nav-architecture.md)** — Navigation architecture and routing
@@ -345,7 +352,8 @@ Detailed documentation is available in the `/docs` folder:
 
 ## Development notes
 
-- **Dev environment only**: Use `/api/auth/dev-login` and `/api/auth/dev-signup` for quick testing
+- **Dev auth**: Use `/auth/login` (or `/auth/login?auth=dev` when Clerk is set) for the dev role-picker; form POSTs to `/api/auth/dev-login`. Signup at `/auth/signup`. All auth errors show InlineAlert with message and request ID (see `lib/client/error-format.ts`).
+- **Debug route**: `GET /api/auth/debug` returns current user and dev cookies only when `NODE_ENV !== "production"` and `DEV_DEBUG=true`; otherwise 404.
 - **Session management**: Sessions are stored in the database with secure HTTP-only cookies
 - **Role switching**: Users with multiple roles can switch their primary mode in the navbar
 - **Admin access**: Admin features require the ADMIN role in the database
