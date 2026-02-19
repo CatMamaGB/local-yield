@@ -38,8 +38,42 @@ export const ALLOWED_CATEGORY_IDS = [
 ] as const;
 export type AllowedCategoryId = (typeof ALLOWED_CATEGORY_IDS)[number];
 
+/** Generic placeholder when product has no image. Used in grid/browse so publishing is not blocked. */
+export const DEFAULT_PRODUCT_IMAGE_PLACEHOLDER = "https://placehold.co/400x300?text=Product";
+
+/** Image URL to show: product image or category-based placeholder or generic. */
+export function getProductDisplayImage(imageUrl: string | null, categoryId?: string): string {
+  if (imageUrl) return imageUrl;
+  if (categoryId && categoryId !== "other") {
+    for (const g of PRODUCT_CATEGORY_GROUPS) {
+      const sub = g.subcategories.find((s) => s.id === categoryId);
+      if (sub) return sub.defaultImageUrl;
+    }
+  }
+  return DEFAULT_PRODUCT_IMAGE_PLACEHOLDER;
+}
+
 /** Get category IDs for a group (subcategory ids). */
 export function getCategoryIdsForGroup(groupId: string): string[] {
   const group = PRODUCT_CATEGORY_GROUPS.find((g) => g.id === groupId);
   return group ? group.subcategories.map((s) => s.id) : [];
 }
+
+/** Get groupId for a categoryId (for telemetry when only category is stored). */
+export function getGroupIdForCategoryId(categoryId: string): string {
+  if (categoryId === "other") return "other";
+  const group = PRODUCT_CATEGORY_GROUPS.find((g) =>
+    g.subcategories.some((s) => s.id === categoryId)
+  );
+  return group?.id ?? "other";
+}
+
+/** Product units for price/quantity clarity. Must match validators ALLOWED_PRODUCT_UNITS. */
+export const PRODUCT_UNIT_OPTIONS: { id: string; label: string }[] = [
+  { id: "each", label: "Each" },
+  { id: "lb", label: "Per lb" },
+  { id: "bunch", label: "Bunch" },
+  { id: "dozen", label: "Dozen" },
+  { id: "jar", label: "Jar" },
+  { id: "box", label: "Box" },
+];

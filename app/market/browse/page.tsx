@@ -3,7 +3,7 @@
  */
 
 import { Suspense } from "react";
-import { BrowseClient } from "@/components/BrowseClient";
+import { BrowseClient } from "@/components/market/BrowseClient";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
 

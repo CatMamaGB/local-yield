@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
     const page = validation.data.page ?? 1;
     const pageSize = Math.min(PAGE_SIZE_MAX, validation.data.pageSize ?? PAGE_SIZE_MAX);
 
-    type Row = { id: string; title: string; description: string; price: number; imageUrl: string | null; stockImage: string | null; category: string; delivery: boolean; pickup: boolean; userId: string; createdAt: Date; user: { name: string | null; zipCode: string }; featuredUntil: Date | null };
+    type Row = { id: string; title: string; description: string; price: number; imageUrl: string | null; stockImage: string | null; category: string; delivery: boolean; pickup: boolean; userId: string; unit: string | null; isOrganic: boolean | null; createdAt: Date; user: { name: string | null; zipCode: string | null }; featuredUntil: Date | null };
     let rows: Row[];
 
     try {
@@ -90,6 +90,8 @@ export async function GET(request: NextRequest) {
         delivery: p.delivery,
         pickup: p.pickup,
         userId: p.userId,
+        unit: p.unit ?? null,
+        isOrganic: p.isOrganic ?? null,
         createdAt: p.createdAt,
         user: { name: p.user.name, zipCode: p.user.zipCode },
         featuredUntil: p.user.producerProfile?.featuredUntil ?? null,
@@ -107,6 +109,8 @@ export async function GET(request: NextRequest) {
         delivery: item.delivery,
         pickup: item.pickup,
         userId: `mock-user-${i}`,
+        unit: null,
+        isOrganic: null,
         createdAt: new Date(),
         user: { name: "Demo Producer", zipCode: item.zip },
         featuredUntil: null,
@@ -155,10 +159,12 @@ export async function GET(request: NextRequest) {
         pickup: r.pickup,
         producerId: r.userId,
         producerName: r.user.name,
-        zip: listingZip,
+        zip: listingZip ?? "",
         distance,
         label,
         featured,
+        isOrganic: r.isOrganic ?? null,
+        unit: r.unit ?? null,
         createdAt: r.createdAt,
       };
     });
@@ -181,8 +187,8 @@ export async function GET(request: NextRequest) {
         if (a.price !== b.price) return a.price - b.price;
       }
       if (sortBy === "newest") {
-        const ta = a.createdAt.getTime();
-        const tb = b.createdAt.getTime();
+        const ta = a.createdAt?.getTime() ?? 0;
+        const tb = b.createdAt?.getTime() ?? 0;
         if (ta !== tb) return tb - ta;
       }
       if (sortBy === "distance" || !sortBy) {

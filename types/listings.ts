@@ -25,6 +25,12 @@ export interface BrowseListing {
   featured?: boolean;
   /** Average rating (1–5) for producer; null if no reviews. */
   averageRating?: number | null;
+  /** Producer marked product as organic; null = not specified. */
+  isOrganic?: boolean | null;
+  /** Selling unit: each, lb, bunch, dozen, jar, box. Null = each. */
+  unit?: string | null;
+  /** Present when sorting; stripped in API response. */
+  createdAt?: Date;
 }
 
 export interface ListingsResponse {

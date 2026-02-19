@@ -37,10 +37,14 @@ export function ListingRow({ listing }: ListingRowProps) {
                 by {listing.producerName}
               </span>
             )}
-            <div className="mt-0.5 flex items-center gap-2">
+            <div className="mt-0.5 flex flex-wrap items-center gap-2">
               <span className="text-sm font-medium text-brand">
                 {formatPrice(listing.price)}
+                {listing.unit ? ` / ${listing.unit}` : ""}
               </span>
+              {listing.isOrganic === true && (
+                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">Organic</span>
+              )}
               <DeliveryBadge delivery={listing.delivery} pickup={listing.pickup} />
             </div>
           </div>

@@ -11,6 +11,7 @@ export {
   PREDEFINED_GROUP_IDS,
   ALLOWED_CATEGORY_IDS,
   getCategoryIdsForGroup,
+  getGroupIdForCategoryId,
   type ProductSubcategory,
   type ProductCategoryGroup,
   type AllowedCategoryId,

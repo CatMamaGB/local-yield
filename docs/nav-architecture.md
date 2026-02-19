@@ -181,7 +181,7 @@ Post-login and post-onboarding redirects use **lastActiveMode** so multi-mode us
 - **Set on route entry:** Each mode root layout sets the cookie when the user visits that area: `app/market/layout.tsx` → `MARKET`, `app/care/layout.tsx` → `CARE`, `app/dashboard/layout.tsx` → `SELL`.
 - **Set on explicit switch:** When the user chooses Account → Switch mode, `PATCH /api/auth/primary-mode` updates the cookie.
 
-Redirect priority (see `lib/redirects.ts`): **next=** (validated safe path) → cart checkout → lastActiveMode → `/market/browse`.
+Redirect priority (see `lib/redirects.ts`): **next=** (validated safe path) → cart checkout → lastActiveMode → `/market/browse`. **Navbar** “Browse” goes to **`/market`** (hub); **`/market/browse`** is the listings page and a valid post-login default.
 
 **next= open-redirect protection:** All `next=` / `requestedUrl` values are validated via `sanitizeNextPath()` / `isSafeRedirect()`: must be a relative path starting with `/`, not `//`, no protocol (http/https), and **not** under `/auth/*` (avoids redirect loops). Only `/market`, `/dashboard`, `/care`, `/admin` (and their subpaths) are allowed.
 

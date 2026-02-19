@@ -9,8 +9,8 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { getDistanceBetweenZips } from "@/lib/geo";
 import { getPublicReviewsForReviewee, getAggregateRatingForReviewee } from "@/lib/reviews";
-import { ProducerHeader } from "@/components/ProducerHeader";
-import { ProducerProductGrid } from "@/components/ProducerProductGrid";
+import { ProducerHeader } from "@/components/market/ProducerHeader";
+import { ProducerProductGrid } from "@/components/market/ProducerProductGrid";
 
 interface ShopPageProps {
   params: Promise<{ id: string }>;
@@ -119,6 +119,8 @@ export default async function ShopPage({ params }: ShopPageProps) {
               delivery: p.delivery,
               pickup: p.pickup,
               quantityAvailable: p.quantityAvailable,
+              unit: p.unit ?? null,
+              isOrganic: p.isOrganic ?? null,
             }))}
             producerId={producer.id}
           />

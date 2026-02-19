@@ -142,7 +142,7 @@ The app uses a warm, earthy color scheme that reflects the local marketplace and
 
 ### Cards
 
-**Search Cards (`MarketSearchCard`, `CareSearchCard`):**
+**Search Cards (`MarketHomeSearchCard` on market hub, `CareSearchCard` on care hub):**
 - White background with border
 - Rounded corners (`rounded-xl`)
 - Padding: `p-6` or `sm:p-8`
@@ -240,7 +240,7 @@ The app uses a warm, earthy color scheme that reflects the local marketplace and
 
 **Market Landing (`/market`):**
 1. Hero: "Local goods from producers near you"
-2. Overlapping `MarketSearchCard` with ZIP/radius search
+2. Overlapping `MarketHomeSearchCard` with ZIP/radius search
 3. "Request an item" section with form
 
 **Care Landing (`/care`):**

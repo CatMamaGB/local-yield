@@ -41,10 +41,11 @@ export async function POST(request: NextRequest) {
     const { data: body, error: parseError } = await parseJsonBody(request);
     if (parseError) return fail(parseError, { code: "INVALID_JSON", status: 400 });
 
-    const mode = body?.mode;
-    if (!mode || !VALID_MODES.includes(mode)) {
+    const modeRaw = body?.mode;
+    if (!modeRaw || !VALID_MODES.includes(modeRaw as Mode)) {
       return fail("mode must be SELL, HELPER, or HIRE", { code: "INVALID_MODE", status: 400, requestId });
     }
+    const mode = modeRaw as Mode;
 
     const role = MODE_TO_ROLE[mode];
     const redirectTarget = MODE_TO_REDIRECT[mode];

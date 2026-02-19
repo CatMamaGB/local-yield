@@ -9,7 +9,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getOrdersForProducer } from "@/lib/orders";
 import { getProducerAlertCounts } from "@/lib/dashboard-alerts";
 import { getProducerMetrics } from "@/lib/producer-metrics";
-import { DemandNearYou } from "@/components/DemandNearYou";
+import { DemandNearYou } from "@/components/market/DemandNearYou";
 import { ExampleOrderPreview } from "@/components/ExampleOrderPreview";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { GrowthSignalCard } from "@/components/dashboard/GrowthSignalCard";

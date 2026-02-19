@@ -328,6 +328,17 @@ export const ProductCategorySchema = z.string().trim().min(1).refine(
   { message: "Category must be one of the allowed category IDs" }
 );
 
+/** Allowed product units for price/quantity clarity (browse, comparison, professional listing). */
+export const ALLOWED_PRODUCT_UNITS = ["each", "lb", "bunch", "dozen", "jar", "box"] as const;
+export type ProductUnit = (typeof ALLOWED_PRODUCT_UNITS)[number];
+export const ProductUnitSchema = z
+  .string()
+  .trim()
+  .refine((val) => val === "" || (ALLOWED_PRODUCT_UNITS as readonly string[]).includes(val), {
+    message: "Unit must be one of: each, lb, bunch, dozen, jar, box",
+  })
+  .transform((val) => (val === "" ? null : val));
+
 /**
  * Caregivers query validation (GET /api/care/caregivers)
  */

@@ -11,7 +11,7 @@ import { ok, fail, parseJsonBody } from "@/lib/api";
 import { logError } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getRequestId } from "@/lib/request-id";
-import { ProductCategorySchema } from "@/lib/validators";
+import { ProductCategorySchema, ProductUnitSchema } from "@/lib/validators";
 
 async function getProductAndCheckOwnership(id: string, requireAuth = true) {
   const product = await prisma.product.findUnique({ where: { id } });
@@ -55,17 +55,18 @@ export async function PATCH(
   try {
     const { id } = await params;
     const { product, error } = await getProductAndCheckOwnership(id);
-    if (error) return fail(error, { code: error === "Not found" ? "NOT_FOUND" : "FORBIDDEN", status: error === "Not found" ? 404 : 403 });
+    if (error) return fail(error, { code: error === "Not found" ? "NOT_FOUND" : "FORBIDDEN", status: error === "Not found" ? 404 : 403, requestId });
 
     const { data: body, error: parseError } = await parseJsonBody(request);
-    if (parseError) return fail(parseError, { code: "INVALID_JSON", status: 400 });
+    if (parseError) return fail(parseError, { code: "INVALID_JSON", status: 400, requestId });
 
     const updates: Record<string, unknown> = {};
     if (body?.title !== undefined) updates.title = String(body.title).trim();
     if (body?.description !== undefined) updates.description = String(body.description).trim();
     if (body?.price !== undefined) {
       const p = Number(body.price);
-      if (!Number.isNaN(p) && p >= 0) updates.price = p;
+      const PRICE_MAX = 999_999.99;
+      if (!Number.isNaN(p) && p > 0 && p <= PRICE_MAX) updates.price = p;
     }
     if (body?.category !== undefined) {
       const categoryRaw = String(body.category).trim();
@@ -80,12 +81,49 @@ export async function PATCH(
     if (body?.pickup !== undefined) updates.pickup = Boolean(body.pickup);
     if (body?.quantityAvailable !== undefined) {
       const q = body.quantityAvailable === null ? null : Number(body.quantityAvailable);
-      updates.quantityAvailable = q != null && Number.isInteger(q) && q >= 0 ? q : null;
+      if (q !== null && (!Number.isInteger(q) || q < 0)) {
+        return fail("Quantity available must be a non-negative integer", { code: "VALIDATION_ERROR", status: 400, requestId });
+      }
+      updates.quantityAvailable = q !== null ? q : null;
+    }
+    if (body?.unit !== undefined) {
+      const unitRaw = body.unit === null ? "" : String(body.unit).trim();
+      const unitResult = ProductUnitSchema.safeParse(unitRaw);
+      if (!unitResult.success) {
+        return fail("Unit must be one of: each, lb, bunch, dozen, jar, box", { code: "VALIDATION_ERROR", status: 400, requestId });
+      }
+      updates.unit = unitResult.data;
+    }
+    if (body?.isOrganic !== undefined) {
+      updates.isOrganic = body.isOrganic === true ? true : body.isOrganic === false ? false : null;
     }
     const updated = await prisma.product.update({
       where: { id },
       data: updates as Parameters<typeof prisma.product.update>[0]["data"],
     });
+
+    if (updated.title && (updates.title !== undefined || updates.category !== undefined)) {
+      const { logProductNameEvent } = await import("@/lib/product-name-event");
+      const { getGroupIdForCategoryId } = await import("@/lib/catalog-categories");
+      await logProductNameEvent({
+        rawName: updated.title,
+        groupId: (body?.groupId != null ? String(body.groupId).trim() : null) || getGroupIdForCategoryId(updated.category),
+        categoryId: updated.category,
+      });
+    }
+
+    const suggestedCategoryId = body?.suggestedCategoryId != null ? String(body.suggestedCategoryId).trim() : null;
+    const suggestionAccepted = body?.suggestionAccepted === true || body?.suggestionAccepted === false ? body.suggestionAccepted : null;
+    if (suggestedCategoryId && suggestionAccepted !== null) {
+      const { logProductCategorySuggestion } = await import("@/lib/product-category-suggestion-log");
+      await logProductCategorySuggestion({
+        normalizedTitle: updated.title,
+        suggestedCategoryId,
+        chosenCategoryId: updated.category,
+        accepted: suggestionAccepted,
+      });
+    }
+
     return ok({ product: updated });
   } catch (error) {
     logError("products/[id]/PATCH", error, { requestId, path: "/api/products/[id]", method: "PATCH" });
@@ -104,7 +142,7 @@ export async function DELETE(
   try {
     const { id } = await params;
     const { error } = await getProductAndCheckOwnership(id);
-    if (error) return fail(error, { code: error === "Not found" ? "NOT_FOUND" : "FORBIDDEN", status: error === "Not found" ? 404 : 403 });
+    if (error) return fail(error, { code: error === "Not found" ? "NOT_FOUND" : "FORBIDDEN", status: error === "Not found" ? 404 : 403, requestId });
     await prisma.product.delete({ where: { id } });
     return ok(undefined);
   } catch (error) {

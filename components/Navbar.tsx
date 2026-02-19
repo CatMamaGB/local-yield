@@ -10,7 +10,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { CartLink } from "@/components/CartLink";
+import { CartLink } from "@/components/market/CartLink";
 import { SignOutButton } from "@/components/SignOutButton";
 import { NotificationBell } from "@/components/NotificationBell";
 import { getUserCapabilities } from "@/lib/authz/client";

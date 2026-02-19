@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCart } from "@/contexts/CartContext";
-import { CartItemRow } from "@/components/CartItemRow";
+import { CartItemRow } from "@/components/market/CartItemRow";
 import { formatPrice } from "@/lib/utils";
 
 export function CartPageClient() {

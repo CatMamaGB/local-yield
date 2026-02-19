@@ -1,6 +1,7 @@
 # The Local Yield — Full Project Summary
 
 **Last updated:** 2026-02-18  
+**Includes Market Pass 1 (group/category/view/map/sort + 150 mile radius).**  
 **Purpose:** Single reference for frontend flows, every button/link, routes, APIs, file structure, and project health.
 
 ---
@@ -42,10 +43,11 @@ local-yield/
 ├── components/                    # Shared UI
 │   ├── Navbar.tsx, Footer.tsx, NavbarWrapper, FooterWrapper
 │   ├── AuthForm, SignupForm, SignOutButton, RoleSelection
-│   ├── MarketSearchCard, CareSearchCard, LocationInput, ZipCodeInput
-│   ├── BrowseClient, ListingRow, ProducerHeader, ProducerProductGrid
-│   ├── CartLink, CartItemRow, AddToCartButton, FulfillmentSelector
-│   ├── RequestItemForm, DemandNearYou
+│   ├── CareSearchCard, LocationInput, ZipCodeInput
+│   ├── market/                    # Market hub, browse, cart, checkout, shop
+│   │   ├── BrowseClient, ListingRow, MarketHomeSearchCard, DeliveryBadge
+│   │   ├── AddToCartButton, CartLink, CartItemRow, FulfillmentSelector
+│   │   ├── ProducerHeader, ProducerProductGrid, RequestItemForm, DemandNearYou
 │   ├── AccountForm, ProducerProfileForm, ProductCatalogForm
 │   ├── OrderStatusBadge, MarkFulfilledButton, ReportDialog
 │   ├── dashboard/                 # MetricCard, GrowthSignalCard
@@ -97,13 +99,13 @@ local-yield/
 | `/sign-in` | Redirects to `/auth/login` |
 | `/sign-up` | Redirects to `/auth/signup` |
 
-**Post-auth redirect:** Priority is next= (validated safe path) → cart checkout → lastActiveMode cookie → `/market/browse`. lastActiveMode is set on entry to each mode root and when user chooses Account → Switch mode.
+**Post-auth redirect:** Priority is next= (validated safe path) → cart checkout → lastActiveMode cookie → `/market/browse`. lastActiveMode is set on entry to each mode root and when user chooses Account → Switch mode. **Navbar** “Browse” goes to **`/market`** (Market hub); **`/market/browse`** is the listings/results page.
 
 ### Market
 
 | Path | Purpose |
 |------|--------|
-| `/market` | Market hub: hero + MarketSearchCard, Request item form, producer CTA (Dashboard or Sign up) |
+| `/market` | Market hub: hero + MarketHomeSearchCard, Request item form, producer CTA (Dashboard or Sign up) |
 | `/market/browse` | Browse listings (ZIP/radius/search); results link to `/market/shop/[id]` |
 | `/market/shop/[id]` | Producer storefront; "Back to browse" → `/market/browse`; add to cart (context) |
 | `/market/cart` | Cart; "Browse" → `/market/browse`, "Proceed to checkout" → `/market/checkout` |
@@ -132,7 +134,7 @@ Care is **always available** in the main nav (Browse, Care, About) for public di
 | `/dashboard/customers` | Customers list; back to Dashboard |
 | `/dashboard/analytics` | Sales analytics; "View all orders" → `/dashboard/orders` |
 | `/dashboard/messages` | Conversations list + thread |
-| `/dashboard/products` | Products CRUD; back to Dashboard |
+| `/dashboard/products` | Products CRUD: list, Add product, edit, delete. Create flow: name → category (auto-suggest) → price → quantity → organic → photo → fulfillment → Publish. Post-save: success message, redirect to list; product appears in list, `/market/browse`, and shop. Non-producer → redirect to onboarding. |
 | `/dashboard/events` | Events list; add/delete |
 | `/dashboard/reviews` | Reviews (producer); link to Messages |
 | `/dashboard/records` | Sales records; back to Dashboard |
@@ -163,7 +165,7 @@ Non-admins get **403**. Admins can use both Dashboard and Admin.
 
 - **Logo / "The Local Yield"** → `/`
 - **Account** dropdown when logged in: **Switch mode** (Market | Sell | Care) only when `isMultiMode`; Profile; Admin (if admin); Sign out
-- **Browse** → `/market/browse`
+- **Browse** → `/market` (Market hub; from there, search card goes to `/market/browse`)
 - **Care** → `/care`
 - **About** → `/about`
 - **Cart** (buyers only, when not in app area) → `/market/cart`
@@ -185,7 +187,7 @@ Non-admins get **403**. Admins can use both Dashboard and Admin.
 
 ### Market hub (`/market`)
 
-- **MarketSearchCard** "Search" → navigates to `/market/browse` with ZIP/radius (client-side)
+- **MarketHomeSearchCard** "Search" → navigates to `/market/browse` with ZIP/radius (client-side)
 - **RequestItemForm** submit → `POST /api/item-requests`
 - "Go to Dashboard" (producer) → `/dashboard`
 - "Start selling" → `/auth/signup`
@@ -241,7 +243,7 @@ Non-admins get **403**. Admins can use both Dashboard and Admin.
 
 ### Dashboard home (`/dashboard`)
 
-- Buyer: Profile → `/dashboard/profile`, Orders → `/dashboard/orders`, Browse → `/market/browse`
+- Buyer: Profile → `/dashboard/profile`, Orders → `/dashboard/orders`, Browse → `/market`
 - Producer: Alert cards → `/dashboard/orders`, `/dashboard/reviews`, `/dashboard/messages`
 - MetricCard links → Revenue, Orders, Customers, Products
 - Quick actions → Profile, Products (add), Events (add), Storefront (`/market/shop/[user.id]`)
@@ -382,13 +384,10 @@ Non-admins get **403**. Admins can use both Dashboard and Admin.
 
 ## 6. Files / Modules Not Used (or Rarely Used)
 
-- **`lib/client/market.ts`** — `searchListings()` is never imported; BrowseClient builds URL and uses `apiGet` directly.
-- **`components/RolePicker.tsx`** — Not imported; signup/onboarding use `RoleSelection` instead.
-- **`components/WeeklyBox.tsx`** — Not imported anywhere.
-- **`components/ProductCard.tsx`** — Not imported; product grids use other patterns (e.g. ProducerProductGrid).
-- **`components/EventCard.tsx`** — Not imported anywhere.
-- **`components/CatalogSelector.tsx`** — Not imported anywhere.
-- **`nul`** (root) — Windows artifact file; safe to delete.
+- **`lib/client/market.ts`** — `searchListings()` is never imported; BrowseClient builds URL and uses `apiGet` directly. Optional: remove or use.
+- **`nul`** (root) — Windows artifact; in `.gitignore`. Delete from disk if present.
+
+**Removed (see project-structure-audit.md):** RolePicker, WeeklyBox, ProductCard, EventCard, CatalogSelector (unused components).
 
 **Note:** `docs/verification-pass-report.md` also notes: (1) Admin custom categories `handleReject` used raw `fetch` in one place (may have been fixed with apiPatch); (2) Dashboard messages page had dead server-side `getConversations()` — remove if still present.
 

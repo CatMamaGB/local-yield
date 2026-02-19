@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useCart } from "@/contexts/CartContext";
-import { FulfillmentSelector } from "@/components/FulfillmentSelector";
+import { FulfillmentSelector } from "@/components/market/FulfillmentSelector";
 import { formatPrice } from "@/lib/utils";
 import { apiGet, apiPost } from "@/lib/client/api-client";
 import { ApiError, apiErrorMessage } from "@/lib/client/api-client";

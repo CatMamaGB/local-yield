@@ -8,7 +8,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import { LocationInput } from "./LocationInput";
+import { LocationInput } from "../LocationInput";
 import { ListingRow } from "./ListingRow";
 import type { BrowseListing, ListingsResponse } from "@/types/listings";
 import { parseMarketSearchParams } from "@/lib/search/market";
@@ -42,9 +42,9 @@ export function BrowseClient() {
   const buildBrowseUrl = useCallback(
     (updates: Record<string, string | number | undefined>) => {
       return buildSearchUrl("/market/browse", {
-        [SEARCH_KEYS.ZIP]: updates.zip ?? zip || undefined,
+        [SEARCH_KEYS.ZIP]: (updates.zip ?? zip) || undefined,
         [SEARCH_KEYS.RADIUS]: updates.radius ?? radius,
-        [SEARCH_KEYS.QUERY]: updates.q ?? searchDebounced || undefined,
+        [SEARCH_KEYS.QUERY]: (updates.q ?? searchDebounced) || undefined,
         [SEARCH_KEYS.GROUP]: updates.group ?? group ?? undefined,
         [SEARCH_KEYS.CATEGORY]: updates.category ?? category ?? undefined,
         [SEARCH_KEYS.VIEW]: updates.view ?? view,

@@ -218,6 +218,10 @@ model Product {
   userId             String
   /// Null = unlimited; 0 = sold out (hide or show "sold out" in UI).
   quantityAvailable  Int?     @map("quantity_available")
+  /// Selling unit: each, lb, bunch, dozen, jar, box. Null = each (display default).
+  unit               String?  @map("unit")
+  /// Producer indicates product is organic; null = not specified.
+  isOrganic          Boolean? @map("is_organic")
   createdAt          DateTime @default(now())
 
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -227,6 +231,32 @@ model Product {
 
   @@index([userId])
   @@index([category])
+}
+
+/// Telemetry for category suggestions: product name → group/category. No PII beyond product name. Used to improve mappings later.
+model ProductNameEvent {
+  id             String   @id @default(cuid())
+  rawName        String   @map("raw_name")
+  normalizedName String   @map("normalized_name")
+  groupId        String   @map("group_id")
+  categoryId     String   @map("category_id")
+  createdAt      DateTime @default(now())
+
+  @@index([normalizedName])
+  @@index([createdAt])
+}
+
+/// Log when producer sees a category suggestion and accepts or overrides it. Used to build frequency table for better suggestions. Never auto-changes saved products.
+model ProductCategorySuggestionLog {
+  id                   String   @id @default(cuid())
+  normalizedTitle      String   @map("normalized_title")
+  suggestedCategoryId  String   @map("suggested_category_id")
+  chosenCategoryId     String   @map("chosen_category_id")
+  accepted             Boolean  @map("accepted")
+  createdAt            DateTime @default(now())
+
+  @@index([normalizedTitle])
+  @@index([createdAt])
 }
 
 /// Producer-submitted category; pending until admin approves. Once approved, visible to all producers. Rejected = not shown to anyone.

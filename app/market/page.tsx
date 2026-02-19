@@ -6,8 +6,8 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { getFeed } from "@/lib/feed";
-import { MarketHomeSearchCard } from "@/components/MarketHomeSearchCard";
-import { RequestItemForm } from "@/components/RequestItemForm";
+import { MarketHomeSearchCard } from "@/components/market/MarketHomeSearchCard";
+import { RequestItemForm } from "@/components/market/RequestItemForm";
 import { CommunityFeedSection } from "@/components/CommunityFeedSection";
 
 export default async function MarketLandingPage() {

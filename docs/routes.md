@@ -17,9 +17,11 @@ Exact paths for thelocalyield.com. Deep links map 1:1 to these paths (PWA + mobi
 
 ### Market (buyer flow)
 
+**Nav:** Navbar “Browse” → `/market` (Market hub). `/market/browse` is the listings/results page (reached from hub search or post-login default).
+
 | Path | Purpose |
 |------|--------|
-| `/market` | Market home (Care-style): hero + central search card (category, ZIP, radius, q). Links to browse. |
+| `/market` | Market home (hub): hero + MarketHomeSearchCard (category, ZIP, radius, q). Links to browse. |
 | `/market/browse` | Browse listings: Products \| Producers view, group/category, sort, ZIP/radius/q. URL params: view, map, group, category, sort, zip, radius, q. |
 | `/market/shop/[id]` | Producer storefront (products, add to cart). |
 | `/market/cart` | Shopping cart. |
@@ -67,7 +69,7 @@ Care is always available alongside Market.
 | `/dashboard/orders` | Orders list (buyer or producer view). |
 | `/dashboard/messages` | Conversations/messages. |
 | `/dashboard/profile` | Profile: account + "Your modes" (add Seller/Helper/Hire without new account). |
-| `/dashboard/products` | Products CRUD. |
+| `/dashboard/products` | Products list; Add product / edit / delete. Create: name, category (auto-suggest), price, quantity, organic, photo, fulfillment; category validated against catalog; post-save redirect to list. Non-producer → onboarding. |
 | `/dashboard/events` | Events management. |
 | `/dashboard/reviews` | Reviews management (producer). |
 | `/dashboard/records` | Sales records. |
@@ -114,8 +116,9 @@ Non-admins visiting `/admin/*` receive **403** (dev: middleware; prod: layout sh
 
 ### Products & catalog
 
-- `GET /api/products`, `POST /api/products` — Products CRUD (POST: producer/admin).
+- `GET /api/products`, `POST /api/products` — Products CRUD (POST: producer/admin; body may include unit, isOrganic, imageUrl).
 - `GET /api/products/[id]`, `PATCH /api/products/[id]`, `DELETE /api/products/[id]` — Single product (producer/admin).
+- `POST /api/upload/image` — Upload product photo (multipart `file`); returns `{ url }`. Requires producer/admin; optional when BLOB_READ_WRITE_TOKEN not set (returns 503, use URL).
 - `GET /api/catalog/categories` — Public catalog categories.
 - `GET /api/catalog/custom-categories` — Public custom categories.
 

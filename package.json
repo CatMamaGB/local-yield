@@ -10,7 +10,8 @@
     "test:caregivers": "tsx scripts/test-caregivers-api.ts",
     "test:help-exchange": "tsx scripts/test-help-exchange-api.ts",
     "test:booking-idempotency": "tsx scripts/test-booking-idempotency.ts",
-    "audit:api-contracts": "tsx scripts/audit-api-contracts.ts"
+    "audit:api-contracts": "tsx scripts/audit-api-contracts.ts",
+    "audit:ci": "npm audit --audit-level=high"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -24,7 +25,9 @@
     "@prisma/client": "^7.3.0",
     "@uploadthing/react": "^7.3.3",
     "@upstash/redis": "^1.36.2",
+    "@vercel/blob": "^2.2.0",
     "dotenv": "^17.2.4",
+    "image-size": "^1.2.1",
     "next": "16.1.6",
     "pg": "^8.18.0",
     "prisma": "^7.3.0",
@@ -46,5 +49,8 @@
     "tailwindcss": "^4",
     "tsx": "^4.19.0",
     "typescript": "^5"
+  },
+  "overrides": {
+    "minimatch": ">=10.2.1"
   }
 }
