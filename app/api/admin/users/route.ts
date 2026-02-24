@@ -6,12 +6,14 @@
 import { NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getUserCapabilities } from "@/lib/authz/client";
+import { getUserCapabilities, type UserCapabilities } from "@/lib/authz/client";
 import { ok, fail, withRequestId } from "@/lib/api";
 import { logError } from "@/lib/logger";
 import { AdminUsersQuerySchema } from "@/lib/validators";
-import type { Role } from "@/types";
+import type { Role as PrismaRole } from "@prisma/client";
+import type { Role } from "@local-yield/shared/types";
 import type { SessionUser } from "@/lib/auth/types";
+import type { Prisma } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
   const requestId = withRequestId(request);
@@ -47,12 +49,12 @@ export async function GET(request: NextRequest) {
     const page = validation.data.page ?? 1;
     const pageSize = validation.data.pageSize ?? 50;
 
-    const where: any = {};
+    const where: Prisma.UserWhereInput = {};
     if (q) {
       where.email = { contains: q, mode: "insensitive" };
     }
     if (role) {
-      where.role = role;
+      where.role = role as PrismaRole;
     }
 
     // Cap initial fetch (capability filter is in-memory)
@@ -105,7 +107,7 @@ export async function GET(request: NextRequest) {
     if (capability) {
       filtered = sessionUsers.filter((user) => {
         const caps = getUserCapabilities(user);
-        return (caps as any)[capability] === true;
+        return (caps as UserCapabilities)[capability as keyof UserCapabilities] === true;
       });
     }
 

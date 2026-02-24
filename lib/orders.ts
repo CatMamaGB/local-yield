@@ -260,6 +260,7 @@ export async function createOrder(input: CreateOrderInput): Promise<{ orderId: s
  * For cash: create order with viaCash true via createOrder.
  * Phase 1: Stub. Implement in Phase 1.5/2 when Stripe is wired.
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- stub param for future impl
 export async function initiateCheckout(_params: {
   orderInput: CreateOrderInput;
   successUrl: string;

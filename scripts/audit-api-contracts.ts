@@ -29,7 +29,7 @@ async function findRouteFiles(dir: string): Promise<string[]> {
         files.push(fullPath);
       }
     }
-  } catch (error) {
+  } catch {
     // Directory doesn't exist or can't read
   }
   return files;

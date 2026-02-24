@@ -56,7 +56,7 @@ export function parseMarketSearchParams(
   const map = searchParams.get(SEARCH_KEYS.MAP) === "1";
   const sortRaw = searchParams.get(SEARCH_KEYS.SORT)?.toLowerCase();
   const sort =
-    sortRaw && [...MARKET_SORT_PRODUCTS, ...MARKET_SORT_PRODUCERS].includes(sortRaw as any)
+    sortRaw && ([...MARKET_SORT_PRODUCTS, ...MARKET_SORT_PRODUCERS] as readonly string[]).includes(sortRaw)
       ? sortRaw
       : "distance";
 

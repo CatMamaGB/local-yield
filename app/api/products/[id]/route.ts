@@ -13,6 +13,22 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { getRequestId } from "@/lib/request-id";
 import { ProductCategorySchema, ProductUnitSchema } from "@/lib/validators";
 
+type ProductPatchBody = {
+  title?: string;
+  description?: string;
+  price?: number;
+  category?: string;
+  imageUrl?: string | null;
+  delivery?: boolean;
+  pickup?: boolean;
+  quantityAvailable?: number | null;
+  unit?: string | null;
+  isOrganic?: boolean | null;
+  groupId?: string | null;
+  suggestedCategoryId?: string | null;
+  suggestionAccepted?: boolean | null;
+};
+
 async function getProductAndCheckOwnership(id: string, requireAuth = true) {
   const product = await prisma.product.findUnique({ where: { id } });
   if (!product) return { product: null, error: "Not found" as const };
@@ -54,11 +70,12 @@ export async function PATCH(
 
   try {
     const { id } = await params;
-    const { product, error } = await getProductAndCheckOwnership(id);
+    const { error } = await getProductAndCheckOwnership(id);
     if (error) return fail(error, { code: error === "Not found" ? "NOT_FOUND" : "FORBIDDEN", status: error === "Not found" ? 404 : 403, requestId });
 
-    const { data: body, error: parseError } = await parseJsonBody(request);
+    const { data: body, error: parseError } = await parseJsonBody<ProductPatchBody>(request);
     if (parseError) return fail(parseError, { code: "INVALID_JSON", status: 400, requestId });
+    if (!body) return fail("Request body is required", { code: "VALIDATION_ERROR", status: 400, requestId });
 
     const updates: Record<string, unknown> = {};
     if (body?.title !== undefined) updates.title = String(body.title).trim();

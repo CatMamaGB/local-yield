@@ -4,7 +4,6 @@
  */
 
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { requireProducerOrAdmin } from "@/lib/auth";
 import { getPendingReviewsForProducer } from "@/lib/reviews";
 import { ProducerReviewsClient } from "./ProducerReviewsClient";

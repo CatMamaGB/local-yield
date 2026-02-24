@@ -34,19 +34,19 @@ export function AnalyticsDateLinks({ from, to }: { from?: string | null; to?: st
     <div className="mt-4 flex gap-2">
       <Link
         href="/dashboard/analytics"
-        className={`rounded-lg px-3 py-1.5 text-sm font-medium ${!currentFrom && !currentTo ? "bg-brand text-white" : "border border-brand/30 text-brand hover:bg-brand-light"}`}
+        className={`rounded-lg px-3 py-1.5 text-sm font-medium ${is30 ? "bg-brand text-white" : "border border-brand/30 text-brand hover:bg-brand-light"}`}
       >
         30 days
       </Link>
       <Link
         href={`/dashboard/analytics?from=${preset7.from}&to=${preset7.to}`}
-        className="rounded-lg border border-brand/30 px-3 py-1.5 text-sm font-medium text-brand hover:bg-brand-light"
+        className={`rounded-lg px-3 py-1.5 text-sm font-medium ${is7 ? "bg-brand text-white" : "border border-brand/30 text-brand hover:bg-brand-light"}`}
       >
         7 days
       </Link>
       <Link
         href={`/dashboard/analytics?from=${preset90.from}&to=${preset90.to}`}
-        className="rounded-lg border border-brand/30 px-3 py-1.5 text-sm font-medium text-brand hover:bg-brand-light"
+        className={`rounded-lg px-3 py-1.5 text-sm font-medium ${is90 ? "bg-brand text-white" : "border border-brand/30 text-brand hover:bg-brand-light"}`}
       >
         90 days
       </Link>

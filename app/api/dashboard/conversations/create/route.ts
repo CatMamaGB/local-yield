@@ -5,7 +5,8 @@
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { getOrCreateConversation } from "@/lib/messaging";
-import { ok, fail, parseJsonBody, withRequestId } from "@/lib/api";
+import { ok, fail, parseJsonBody, withRequestId, addCorsHeaders, handleCorsPreflight } from "@/lib/api";
+import { mapAuthErrorToResponse } from "@/lib/auth/error-handler";
 import { logError } from "@/lib/logger";
 import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limit";
 import { z } from "zod";
@@ -39,13 +40,19 @@ export async function POST(request: NextRequest) {
       userBId: validation.data.userId,
     });
 
-    return ok({ conversationId: conversation.id }, requestId);
+    const response = ok({ conversationId: conversation.id }, requestId);
+    return addCorsHeaders(response, request);
   } catch (error) {
     logError("dashboard/conversations/create/POST", error, {
       requestId,
       path: "/api/dashboard/conversations/create",
       method: "POST",
     });
-    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
+    const errorResponse = mapAuthErrorToResponse(error, requestId);
+    return addCorsHeaders(errorResponse, request);
   }
+}
+
+export async function OPTIONS(request: NextRequest) {
+  return handleCorsPreflight(request) || new Response(null, { status: 403 });
 }

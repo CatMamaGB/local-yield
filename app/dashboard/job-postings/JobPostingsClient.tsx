@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { apiGet, apiPatch } from "@/lib/client/api-client";
+import { apiPatch } from "@/lib/client/api-client";
 import { ApiError, apiErrorMessage } from "@/lib/client/api-client";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -35,22 +35,8 @@ const STATUS_LABELS: Record<string, string> = {
 
 export function JobPostingsClient({ initialPostings }: JobPostingsClientProps) {
   const [postings, setPostings] = useState<Posting[]>(initialPostings);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-
-  async function loadMine() {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await apiGet<{ postings: Posting[] }>("/api/help-exchange/postings?mine=1");
-      setPostings(data.postings);
-    } catch (e) {
-      setError(e instanceof ApiError ? apiErrorMessage(e) : (e instanceof Error ? e.message : "Failed to load"));
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function handleStatusChange(id: string, status: "FILLED" | "CLOSED") {
     setUpdatingId(id);
@@ -65,7 +51,7 @@ export function JobPostingsClient({ initialPostings }: JobPostingsClientProps) {
     }
   }
 
-  if (postings.length === 0 && !loading) {
+  if (postings.length === 0) {
     return (
       <EmptyState
         title="No job postings yet"

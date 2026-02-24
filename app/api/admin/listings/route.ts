@@ -4,11 +4,16 @@
  */
 
 import { NextRequest } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, fail, withRequestId } from "@/lib/api";
 import { logError } from "@/lib/logger";
 import { AdminListingsQuerySchema } from "@/lib/validators";
+
+type AdminListingItem =
+  | { id: string; type: "market"; title: string; active: boolean; creator: { id: string; name: string | null; email: string }; createdAt: Date }
+  | { id: string; type: "care"; title: string; active: boolean; creator: { id: string; name: string | null; email: string }; createdAt: Date };
 
 export async function GET(request: NextRequest) {
   const requestId = withRequestId(request);
@@ -45,10 +50,10 @@ export async function GET(request: NextRequest) {
     const pageSize = validation.data.pageSize ?? 50;
     const cap = 500;
 
-    const results: any[] = [];
+    const results: AdminListingItem[] = [];
 
     if (!type || type === "market") {
-      const where: any = {};
+      const where: Prisma.ProductWhereInput = {};
       if (q) where.title = { contains: q, mode: "insensitive" };
       const products = await prisma.product.findMany({
         where,
@@ -71,7 +76,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (!type || type === "care") {
-      const where: any = {};
+      const where: Prisma.CareServiceListingWhereInput = {};
       if (active !== null && active !== undefined) where.active = active;
       if (q) where.title = { contains: q, mode: "insensitive" };
       const careListings = await prisma.careServiceListing.findMany({

@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
       },
       requestId
     );
-  } catch (err) {
+  } catch {
     return fail("Failed to load analytics", {
       code: "INTERNAL_ERROR",
       status: 500,

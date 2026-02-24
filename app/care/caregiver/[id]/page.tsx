@@ -10,7 +10,7 @@ import { ProfileViewTracker } from "./ProfileViewTracker";
 import { CaregiverActions } from "./CaregiverActions";
 import { getCurrentUser } from "@/lib/auth";
 import { SERVICE_TYPE_LABELS, SPECIES_LABELS } from "@/lib/care/labels";
-import type { AnimalSpecies, CareServiceType, CareTaskType, ExperienceBackground } from "@prisma/client";
+import type { AnimalSpecies, CareTaskType, ExperienceBackground } from "@prisma/client";
 
 interface CaregiverPageProps {
   params: Promise<{ id: string }>;

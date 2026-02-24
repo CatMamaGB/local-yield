@@ -25,7 +25,7 @@ export function AddToCartButton({
   imageUrl,
   className = "",
 }: AddToCartButtonProps) {
-  const { items, addItem, updateQuantity, singleProducerId } = useCart();
+  const { items, addItem, updateQuantity } = useCart();
   const [adding, setAdding] = useState(false);
   const existing = items.find((i) => i.productId === productId);
   const unitPriceCents = Math.round(price * 100);

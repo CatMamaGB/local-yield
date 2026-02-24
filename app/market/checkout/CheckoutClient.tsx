@@ -176,7 +176,7 @@ export function CheckoutClient() {
         </InlineAlert>
       )}
       <p className="text-sm text-brand/70">
-        This places an order request with the producer. No payment is taken online. You'll pay the producer at pickup or delivery (cash or as arranged).
+        This places an order request with the producer. No payment is taken online. You&apos;ll pay the producer at pickup or delivery (cash or as arranged).
       </p>
       <button
         type="submit"

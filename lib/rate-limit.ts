@@ -28,7 +28,8 @@ export const RATE_LIMIT_PRESETS = {
   MESSAGES: { windowMs: 60_000, max: 120 },
 } as const;
 
-function useRedis(): boolean {
+/** Check if Redis is configured (avoids React hook rule: name must not start with "use"). */
+function isRedisConfigured(): boolean {
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   return typeof url === "string" && url.length > 0 && typeof token === "string" && token.length > 0;
@@ -87,7 +88,7 @@ export async function checkRateLimit(
   const windowMs = options?.windowMs ?? DEFAULT_WINDOW_MS;
   const max = options?.max ?? DEFAULT_MAX;
 
-  if (useRedis()) {
+  if (isRedisConfigured()) {
     return checkRateLimitRedis(request, { windowMs, max }, windowMs, max, requestId);
   }
 

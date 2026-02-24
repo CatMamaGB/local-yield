@@ -9,8 +9,6 @@ import { getCurrentUser } from "@/lib/auth";
 import { getBookingsForUser } from "@/lib/care";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { CareBookingsClient } from "./CareBookingsClient";
-import type { CareBookingStatus, AnimalSpecies, CareServiceType } from "@prisma/client";
-
 export default async function CareBookingsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/auth/login");

@@ -6,7 +6,7 @@ import { CartItemRow } from "@/components/market/CartItemRow";
 import { formatPrice } from "@/lib/utils";
 
 export function CartPageClient() {
-  const { items, itemCount, singleProducerId, clearCart } = useCart();
+  const { items, itemCount, clearCart } = useCart();
 
   if (itemCount === 0) {
     return (

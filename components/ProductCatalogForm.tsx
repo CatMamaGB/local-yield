@@ -9,6 +9,7 @@
 import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import Image from "next/image";
 import { useRef, useState, useEffect, useMemo } from "react";
 import { apiGet, apiPost } from "@/lib/client/api-client";
 
@@ -403,10 +404,13 @@ export function ProductCatalogForm({
       {(selectedSubcategory || selectedCustom) && (
         <div>
           <span className="block text-sm font-medium text-brand">Default image for category</span>
-          <img
+          <Image
             src={defaultImageUrl}
             alt={selectedCategoryLabel}
+            width={96}
+            height={96}
             className="mt-1 h-24 w-24 rounded border border-brand/20 object-cover"
+            unoptimized
           />
           {selectedCustom?.status === "PENDING" && (
             <p className="mt-1 text-xs text-amber-700">Pending admin review — still available for your use.</p>

@@ -4,8 +4,13 @@
  */
 
 import { prisma } from "./prisma";
-import type { ReportReason, ReportStatus } from "@prisma/client";
-import type { OrderDisputeProblemType, OrderDisputeProposedOutcome } from "@prisma/client";
+import type {
+  OrderDisputeProblemType,
+  OrderDisputeProposedOutcome,
+  OrderDisputeResolutionOutcome,
+  ReportReason,
+  ReportStatus,
+} from "@prisma/client";
 
 export interface ReportAttachmentInput {
   url: string;
@@ -180,7 +185,7 @@ export async function updateReportAdmin(reportId: string, input: UpdateReportAdm
   if (input.assignedToId !== undefined) data.assignedToId = input.assignedToId;
   if (input.status !== undefined) data.status = input.status;
   if (input.resolutionOutcome !== undefined)
-    data.resolutionOutcome = input.resolutionOutcome as any;
+    data.resolutionOutcome = input.resolutionOutcome as OrderDisputeResolutionOutcome;
   if (input.resolutionNote !== undefined) data.resolutionNote = input.resolutionNote;
   if (input.resolutionAmountCents !== undefined)
     data.resolutionAmountCents = input.resolutionAmountCents;

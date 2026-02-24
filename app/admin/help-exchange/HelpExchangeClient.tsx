@@ -4,7 +4,7 @@
  * Admin help exchange postings list client component.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { apiGet } from "@/lib/client/api-client";
 import { ApiError, apiErrorMessage } from "@/lib/client/api-client";
 import { InlineAlert } from "@/components/ui/InlineAlert";
@@ -30,11 +30,7 @@ export function HelpExchangeClient() {
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
 
-  useEffect(() => {
-    fetchPostings();
-  }, [statusFilter, categoryFilter]);
-
-  async function fetchPostings() {
+  const fetchPostings = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -50,7 +46,11 @@ export function HelpExchangeClient() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [statusFilter, categoryFilter]);
+
+  useEffect(() => {
+    fetchPostings();
+  }, [fetchPostings]);
 
   if (loading) {
     return <LoadingSkeleton rows={10} />;

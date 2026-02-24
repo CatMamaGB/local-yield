@@ -35,7 +35,6 @@ export function AdminCustomCategoriesClient({
   customCategories,
   total,
   page,
-  limit,
   totalPages,
   initialSearch,
   actionLogs,
@@ -43,7 +42,6 @@ export function AdminCustomCategoriesClient({
   customCategories: PendingCustomCategoryRow[];
   total: number;
   page: number;
-  limit: number;
   totalPages: number;
   initialSearch: string;
   actionLogs: ActionLogEntry[];

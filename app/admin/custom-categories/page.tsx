@@ -46,7 +46,6 @@ export default async function AdminCustomCategoryReviewPage({
         customCategories={result.list}
         total={result.total}
         page={result.page}
-        limit={result.limit}
         totalPages={result.totalPages}
         initialSearch={search ?? ""}
         actionLogs={actionLogs}

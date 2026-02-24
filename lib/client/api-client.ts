@@ -82,8 +82,45 @@ const defaultHeaders: Record<string, string> = {
   Accept: "application/json",
 };
 
+/**
+ * Get auth token from storage (localStorage for web).
+ * Returns token string or null.
+ */
+function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem("api_token");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Set auth token in storage.
+ */
+export function setAuthToken(token: string | null): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (token) {
+      localStorage.setItem("api_token", token);
+    } else {
+      localStorage.removeItem("api_token");
+    }
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+/**
+ * Get headers with auth token if available.
+ */
+function getAuthHeaders(): Record<string, string> {
+  const token = getAuthToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 function jsonHeaders(body?: unknown): Record<string, string> {
-  const h = { ...defaultHeaders };
+  const h = { ...defaultHeaders, ...getAuthHeaders() };
   if (body !== undefined) {
     h["Content-Type"] = "application/json";
   }
@@ -97,7 +134,7 @@ export async function apiGet<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...init,
     method: "GET",
-    headers: { ...defaultHeaders, ...init?.headers },
+    headers: { ...defaultHeaders, ...getAuthHeaders(), ...init?.headers },
   });
   return parseResponse<T>(res);
 }
@@ -143,7 +180,7 @@ export async function apiDelete<T>(url: string, init?: RequestInit): Promise<T> 
   const res = await fetch(url, {
     ...init,
     method: "DELETE",
-    headers: { ...defaultHeaders, ...init?.headers },
+    headers: { ...defaultHeaders, ...getAuthHeaders(), ...init?.headers },
   });
   return parseResponse<T>(res);
 }

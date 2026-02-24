@@ -10,7 +10,6 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { ok, fail, parseJsonBody, withRequestId } from "@/lib/api";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { getRequestId } from "@/lib/request-id";
 import { logError } from "@/lib/logger";
 import { Role } from "@prisma/client";
 

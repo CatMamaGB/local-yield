@@ -14,7 +14,7 @@ import {
   listHelpExchangePostingsByCreator,
 } from "@/lib/help-exchange";
 import { CreateHelpExchangePostingSchema } from "@/lib/validators";
-import { ok, fail, failStructured, parseJsonBody, withRequestId } from "@/lib/api";
+import { ok, fail, parseJsonBody, withRequestId } from "@/lib/api";
 import { logError } from "@/lib/logger";
 import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limit";
 import { ZipSchema } from "@/lib/validators";
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
     }
 
     const radius = radiusStr ? parseInt(radiusStr, 10) : 25;
-    if (isNaN(radius) || !RADIUS_OPTIONS.includes(radius as any)) {
+    if (isNaN(radius) || !(RADIUS_OPTIONS as readonly number[]).includes(radius)) {
       return fail(`Radius must be one of: ${RADIUS_OPTIONS.join(", ")}`, {
         code: "VALIDATION_ERROR",
         status: 400,

@@ -4,13 +4,13 @@
  * Supports group/category filter, q search, sort (distance|newest|price_asc|rating), pagination + hard cap.
  */
 
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getDistanceBetweenZips } from "@/lib/geo";
 import { getCategoryIdsForGroup } from "@/lib/catalog-categories";
 import { getAggregateRatingsForReviewees } from "@/lib/reviews";
-import type { BrowseListing, ListingLabel } from "@/types/listings";
-import { ok, fail } from "@/lib/api";
+import type { BrowseListing, ListingLabel } from "@local-yield/shared/types/listings";
+import { ok, fail, addCorsHeaders, handleCorsPreflight } from "@/lib/api";
 import { logError } from "@/lib/logger";
 import { getRequestId } from "@/lib/request-id";
 import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limit";
@@ -31,7 +31,14 @@ const MOCK_LISTINGS = [
 export async function GET(request: NextRequest) {
   const requestId = getRequestId(request);
   const rateLimitRes = await checkRateLimit(request, RATE_LIMIT_PRESETS.DEFAULT, requestId);
-  if (rateLimitRes) return rateLimitRes;
+  if (rateLimitRes) {
+    // rateLimitRes is a Response, convert to NextResponse for CORS
+    const nextRes = NextResponse.json(
+      await rateLimitRes.json(),
+      { status: rateLimitRes.status }
+    );
+    return addCorsHeaders(nextRes, request);
+  }
   try {
     const { searchParams } = new URL(request.url);
     const queryParams = {
@@ -207,9 +214,10 @@ export async function GET(request: NextRequest) {
     const total = Math.min(totalRaw, TOTAL_CAP);
     const skip = (page - 1) * pageSize;
     const capped = sorted.slice(0, TOTAL_CAP);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const items = capped.slice(skip, skip + pageSize).map(({ createdAt: _c, ...listing }) => listing);
 
-    return ok({
+    const response = ok({
       items,
       page,
       pageSize,
@@ -217,9 +225,15 @@ export async function GET(request: NextRequest) {
       listings: items,
       userZip: zip,
       radiusMiles,
-    });
+    }, requestId);
+    return addCorsHeaders(response, request);
   } catch (e) {
     logError("listings/GET", e, { requestId, path: "/api/listings", method: "GET" });
-    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
+    const errorResponse = fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
+    return addCorsHeaders(errorResponse, request);
   }
+}
+
+export async function OPTIONS(request: NextRequest) {
+  return handleCorsPreflight(request) || new Response(null, { status: 403 });
 }

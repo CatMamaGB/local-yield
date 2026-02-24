@@ -7,7 +7,6 @@ import { getCurrentUser, requireAdmin } from "@/lib/auth";
 import { getReportById } from "@/lib/reports";
 import { prisma } from "@/lib/prisma";
 import { ok, fail, withRequestId } from "@/lib/api";
-import { logError } from "@/lib/logger";
 
 export async function GET(
   request: NextRequest,

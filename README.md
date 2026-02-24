@@ -79,12 +79,15 @@ For **staging**, you can gate the app with HTTP Basic Auth. When `APP_GATE_ENABL
 
 ## Mobile app and web parity
 
-- **Web API for mobile:** Mobile uses the same domain (e.g. `https://thelocalyield.com`). Main API: `GET /api/listings?zip=...` for Market browse; future: `/api/orders`, `/api/messages`, `/api/products`, `/api/events`.
-- **Shared types:** `types/index.ts`, `types/listings.ts`, `types/care.ts`. Later move to `packages/shared/src/types/*` so web + mobile import the same types.
+- **Web API for mobile:** Mobile uses the same domain (e.g. `https://thelocalyield.com`). Main API: `GET /api/listings?zip=...` for Market browse; `/api/products`, `/api/orders`, `/api/messages`, `/api/dashboard/*`, `/api/catalog/categories`, etc.
+- **Token auth:** Mobile uses Clerk JWT via `Authorization: Bearer <token>`. `GET /api/auth/token` (dev-only) issues a dev token for local testing; in production it returns 404. See [docs/token-auth-production-fix.md](docs/token-auth-production-fix.md).
+- **CORS:** Strategic CORS is enabled on mobile-facing endpoints via `lib/cors.ts` (allowed origins, preflight handling). See [docs/cors-rollout-checklist.md](docs/cors-rollout-checklist.md).
+- **Auth errors:** API routes use `mapAuthErrorToResponse()` from `lib/auth/error-handler.ts` for consistent 401 (UNAUTHORIZED) and 403 (FORBIDDEN) responses without leaking stack traces.
+- **Shared types:** Monorepo `packages/shared` provides `@local-yield/shared/types`; `types/` re-exports for backward compatibility. See [docs/types-migration-completion.md](docs/types-migration-completion.md).
 - **Deep link parity:** Mobile tabs map to web routes (Market → `/market`, `/market/shop/[id]`; Orders → `/dashboard/orders`; Messages → `/messages`; Profile → `/dashboard` or `/profile`; Care → `/care/*`). Care is always available alongside Market. URL is the source of truth.
-- **Expo API pattern:** In Expo, `apps/mobile/src/lib/api.ts` with base URL `https://thelocalyield.com`; every request is e.g. `GET https://thelocalyield.com/api/listings?zip=...`. No separate server.
+- **Expo API pattern:** In Expo, API client uses base URL `https://thelocalyield.com`; every request sends `Authorization: Bearer <token>` when authenticated. No separate server.
 
-Full details: [docs/mobile-web-mapping.md](docs/mobile-web-mapping.md).
+Full details: [docs/mobile-web-mapping.md](docs/mobile-web-mapping.md). **Phase 3 readiness:** [docs/READY-FOR-PHASE3.md](docs/READY-FOR-PHASE3.md), [docs/deployment-step-by-step.md](docs/deployment-step-by-step.md), [docs/phase3-test-sequence.md](docs/phase3-test-sequence.md).
 
 ## Database schema
 
@@ -167,7 +170,7 @@ The repo is structured for production: App Router by feature, domain-oriented `l
     /users            — User management
     /listings         — Listing management
   /api
-    /auth             — Auth endpoints (login, signup, onboarding, sign-out, primary-mode, dev-login, dev-signup)
+    /auth             — Auth endpoints (login, signup, onboarding, sign-out, primary-mode, dev-login, dev-signup, token for dev)
     /admin            — Admin APIs (reviews, custom categories, users, listings, action logs)
     /account          — Account management APIs
     /care             — Care APIs (caregivers, bookings, conversations)
@@ -203,6 +206,7 @@ The repo is structured for production: App Router by feature, domain-oriented `l
   authz.ts            — Authorization checks
   care.ts             — Care platform utilities
   catalog-categories.ts — Category management
+  cors.ts             — CORS helpers for mobile API
   dashboard-alerts.ts — Dashboard alerts
   logger.ts           — Structured logging with request IDs
   nav-config.ts       — Navigation configuration
@@ -215,7 +219,8 @@ The repo is structured for production: App Router by feature, domain-oriented `l
   request-id.ts       — Request ID generation
   reviews.ts          — Review utilities
   validators.ts       — Input validation
-  /client              — Client-side API utilities
+  /auth               — Auth server utilities (error-handler for 401/403)
+  /client             — Client-side API utilities
 /docs
   auth-flows.md       — Authentication flow documentation
   code-audit.md       — Code audit reports
@@ -280,6 +285,7 @@ The repo is structured for production: App Router by feature, domain-oriented `l
 
 ## Recent updates
 
+- ✅ **Phase 3 mobile readiness:** Token auth (Clerk JWT + dev token), CORS on mobile endpoints, 401/403 error handling (`lib/auth/error-handler.ts`), shared types in `packages/shared`
 - ✅ Custom auth system with signup, login, and onboarding
 - ✅ Role-based access control (buyer, producer, caregiver, admin)
 - ✅ Primary mode switching for multi-role users
@@ -349,6 +355,13 @@ Detailed documentation is available in the `/docs` folder:
 - **[qa-checklist-10min.md](docs/qa-checklist-10min.md)** — Quick QA checklist
 - **[feature-checklist-gap-analysis.md](docs/feature-checklist-gap-analysis.md)** — Feature gap analysis
 - **[mobile-web-mapping.md](docs/mobile-web-mapping.md)** — Mobile-web integration guide
+- **[READY-FOR-PHASE3.md](docs/READY-FOR-PHASE3.md)** — Phase 3 readiness summary (token auth, CORS, shared types)
+- **[deployment-step-by-step.md](docs/deployment-step-by-step.md)** — Deployment and Expo setup guide
+- **[phase3-test-sequence.md](docs/phase3-test-sequence.md)** — Phase 3 test steps
+- **[mobile-endpoints-status.md](docs/mobile-endpoints-status.md)** — Mobile endpoint CORS/auth status
+- **[token-auth-production-fix.md](docs/token-auth-production-fix.md)** — Token auth production safety
+- **[cors-rollout-checklist.md](docs/cors-rollout-checklist.md)** — CORS rollout checklist
+- **[types-migration-completion.md](docs/types-migration-completion.md)** — Shared types migration
 
 ## Development notes
 

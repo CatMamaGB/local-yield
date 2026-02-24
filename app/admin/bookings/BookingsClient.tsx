@@ -4,7 +4,7 @@
  * Admin bookings list client component.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { apiGet } from "@/lib/client/api-client";
 import { ApiError, apiErrorMessage } from "@/lib/client/api-client";
@@ -35,11 +35,7 @@ export function BookingsClient() {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("");
 
-  useEffect(() => {
-    fetchBookings();
-  }, [statusFilter]);
-
-  async function fetchBookings() {
+  const fetchBookings = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -54,7 +50,11 @@ export function BookingsClient() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [statusFilter]);
+
+  useEffect(() => {
+    fetchBookings();
+  }, [fetchBookings]);
 
   if (loading) {
     return <LoadingSkeleton rows={10} />;

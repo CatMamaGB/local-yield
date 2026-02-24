@@ -4,6 +4,7 @@
  */
 
 import { NextRequest } from "next/server";
+import type { CareBookingStatus } from "@prisma/client";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, fail, withRequestId } from "@/lib/api";
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
     const pageSize = validation.data.pageSize ?? 50;
     const skip = (page - 1) * pageSize;
 
-    const where = { ...(status && { status: status as any }) };
+    const where = { ...(status && { status: status as CareBookingStatus }) };
 
     const [bookings, total] = await Promise.all([
       prisma.careBooking.findMany({

@@ -4,6 +4,7 @@
  */
 
 import { NextRequest } from "next/server";
+import type { OrderDisputeProblemType, OrderDisputeProposedOutcome } from "@prisma/client";
 import { getCurrentUser, requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createReport, getReportsForAdminPaginated, getReportsMine, getReportsForProducer } from "@/lib/reports";
@@ -104,8 +105,8 @@ export async function POST(request: NextRequest) {
       description: validation.data.description,
       entityType: validation.data.entityType,
       entityId: validation.data.entityId,
-      problemType: validation.data.problemType as any,
-      proposedOutcome: validation.data.proposedOutcome as any,
+      problemType: validation.data.problemType as OrderDisputeProblemType | undefined,
+      proposedOutcome: validation.data.proposedOutcome as OrderDisputeProposedOutcome | undefined,
       attachments: validation.data.attachments,
     });
 
@@ -171,7 +172,7 @@ export async function GET(request: NextRequest) {
     const page = validation.data.page ?? 1;
     const pageSize = validation.data.pageSize ?? 50;
     const filters = {
-      ...(validation.data.status && { status: validation.data.status as any }),
+      ...(validation.data.status && { status: validation.data.status }),
       ...(validation.data.entityType && { entityType: validation.data.entityType }),
     };
 

@@ -6,7 +6,8 @@
 import { NextRequest } from "next/server";
 import { requireProducerOrAdmin } from "@/lib/auth";
 import { PRODUCT_CATEGORY_GROUPS, getCustomCategoriesForProducer } from "@/lib/catalog-categories";
-import { ok, fail } from "@/lib/api";
+import { ok, addCorsHeaders, handleCorsPreflight } from "@/lib/api";
+import { mapAuthErrorToResponse } from "@/lib/auth/error-handler";
 import { logError } from "@/lib/logger";
 import { getRequestId } from "@/lib/request-id";
 
@@ -15,10 +16,15 @@ export async function GET(request: NextRequest) {
   try {
     const user = await requireProducerOrAdmin();
     const customCategories = await getCustomCategoriesForProducer(user.id);
-    return ok({ groups: PRODUCT_CATEGORY_GROUPS, customCategories });
+    const response = ok({ groups: PRODUCT_CATEGORY_GROUPS, customCategories }, requestId);
+    return addCorsHeaders(response, request);
   } catch (e) {
     logError("catalog/categories/GET", e, { requestId, path: "/api/catalog/categories", method: "GET" });
-    const message = e instanceof Error ? e.message : "Forbidden";
-    return fail(message, { code: "FORBIDDEN", status: 403 });
+    const errorResponse = mapAuthErrorToResponse(e, requestId);
+    return addCorsHeaders(errorResponse, request);
   }
+}
+
+export async function OPTIONS(request: NextRequest) {
+  return handleCorsPreflight(request) || new Response(null, { status: 403 });
 }

@@ -50,7 +50,6 @@ export function OnboardingClient() {
   const [error, setError] = useState<string | null>(null);
 
   const allowedModes = useMemo(() => {
-    const hasBuyer = roles.includes("BUYER");
     const hasProducer = roles.includes("PRODUCER");
     const hasCare = roles.includes("CAREGIVER") || roles.includes("CARE_SEEKER");
     const modes: PrimaryMode[] = ["MARKET"];

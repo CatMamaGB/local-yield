@@ -43,6 +43,7 @@ export function RecordsClient({
 
   return (
     <div className="flex flex-wrap items-center gap-4">
+      <p className="text-sm text-brand/80">Records for {periodLabel}</p>
       <nav className="flex rounded-lg border border-brand/20 bg-white p-1" aria-label="Time period">
         {periods.map((p) => (
           <button

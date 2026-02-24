@@ -4,7 +4,7 @@
  * Admin reports queue: list + detail with assign, resolve, evidence viewer.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { apiGet, apiPost, apiPatch } from "@/lib/client/api-client";
 import { ApiError, apiErrorMessage } from "@/lib/client/api-client";
 import { InlineAlert } from "@/components/ui/InlineAlert";
@@ -48,11 +48,7 @@ export function ReportsClient() {
   });
   const [updating, setUpdating] = useState(false);
 
-  useEffect(() => {
-    fetchReports();
-  }, [statusFilter, entityTypeFilter]);
-
-  async function fetchReports() {
+  const fetchReports = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -66,7 +62,11 @@ export function ReportsClient() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [statusFilter, entityTypeFilter]);
+
+  useEffect(() => {
+    fetchReports();
+  }, [fetchReports]);
 
   async function openDetail(id: string) {
     setDetailId(id);

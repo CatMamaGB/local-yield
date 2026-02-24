@@ -18,14 +18,12 @@ export interface Message {
 export interface MessageThreadProps {
   orderId: string;
   messages?: Message[];
-  currentUserId?: string;
   onSend?: (body: string) => Promise<void>;
 }
 
 export function MessageThread({
   orderId,
   messages = [],
-  currentUserId,
   onSend,
 }: MessageThreadProps) {
   const [input, setInput] = useState("");

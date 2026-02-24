@@ -7,8 +7,6 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { getOrdersForBuyer, getOrdersForProducer } from "@/lib/orders";
 import { getReviewByOrderForBuyer } from "@/lib/reviews";
-import { formatDate } from "@/lib/utils";
-import { OrderStatusBadge } from "@/components/OrderStatusBadge";
 import { ProducerOrdersClient } from "./ProducerOrdersClient";
 import { BuyerOrdersClient } from "./BuyerOrdersClient";
 

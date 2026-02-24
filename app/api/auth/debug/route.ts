@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
       },
       requestId
     );
-  } catch (e) {
+  } catch {
     return fail("Debug failed", { code: "INTERNAL_ERROR", status: 500, requestId });
   }
 }

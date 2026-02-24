@@ -13,7 +13,7 @@ export const CARE_RESULT_KIND_VALUES: CareResultKind[] = ["CARE", "HELP_EXCHANGE
 export interface CaregiverBrowseItem {
   id: string;
   name: string | null;
-  zipCode: string;
+  zipCode: string | null;
   distance: number | null;
   featured?: boolean;
   caregiverProfile: {

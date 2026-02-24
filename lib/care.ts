@@ -18,7 +18,7 @@ export interface ListCaregiversInput {
 export interface CaregiverSummary {
   id: string;
   name: string | null;
-  zipCode: string;
+  zipCode: string | null;
   distance: number | null;
   featured?: boolean;
   caregiverProfile: {
@@ -102,7 +102,9 @@ export async function listCaregiversByRadius(input: ListCaregiversInput): Promis
   // Filter by radius and distance
   const withDistance = caregivers
     .map((caregiver) => {
-      const distance = getDistanceBetweenZips(input.zip, caregiver.zipCode);
+      const distance = caregiver.zipCode
+        ? getDistanceBetweenZips(input.zip, caregiver.zipCode)
+        : null;
       const nearby = distance !== null && distance <= input.radius;
       
       // Check if any listing is within radius

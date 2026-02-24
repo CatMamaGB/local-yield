@@ -10,7 +10,7 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { LocationInput } from "../LocationInput";
 import { ListingRow } from "./ListingRow";
-import type { BrowseListing, ListingsResponse } from "@/types/listings";
+import type { BrowseListing, ListingsResponse } from "@local-yield/shared/types/listings";
 import { parseMarketSearchParams } from "@/lib/search/market";
 import { buildSearchUrl } from "@/lib/search/url";
 import { SEARCH_KEYS } from "@/lib/search/keys";
@@ -107,7 +107,7 @@ export function BrowseClient() {
       [SEARCH_KEYS.SORT]: sort,
     });
     router.replace(url, { scroll: false });
-  }, [searchDebounced, zip, radius, group, category, view, sort]);
+  }, [searchDebounced, zip, radius, group, category, view, sort, router]);
 
   const handleLocationSelect = (newZip: string, newRadius?: number) => {
     setZip(newZip);
@@ -296,6 +296,9 @@ export function BrowseClient() {
 
       {!loading && data && (
         <>
+          {listings.length > 0 && (
+            <p className="text-sm text-brand/80 mb-2">{total} results</p>
+          )}
           {listings.length === 0 ? (
             <div className="rounded-xl border border-brand/10 bg-white p-8 text-center shadow-farmhouse sm:p-10">
               <p className="font-display text-xl font-semibold text-brand leading-tight">

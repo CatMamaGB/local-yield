@@ -23,8 +23,8 @@ interface BookingRow {
   notes: string | null;
   species: AnimalSpecies | null;
   serviceType: CareServiceType | null;
-  careSeeker: { id: string; name: string | null; zipCode: string };
-  caregiver: { id: string; name: string | null; zipCode: string };
+  careSeeker: { id: string; name: string | null; zipCode: string | null };
+  caregiver: { id: string; name: string | null; zipCode: string | null };
   createdAt: string;
   updatedAt: string;
 }
@@ -80,7 +80,7 @@ export function CareBookingsClient({ bookings, currentUserId }: CareBookingsClie
     }
   }
 
-  async function handleMessage(bookingId: string, _otherUserId: string) {
+  async function handleMessage(bookingId: string) {
     try {
       const data = await apiPost<{ conversationId: string }>(`/api/care/bookings/${bookingId}/conversation`);
       router.push(`/dashboard/messages?conversationId=${data.conversationId}`);
@@ -185,7 +185,7 @@ export function CareBookingsClient({ bookings, currentUserId }: CareBookingsClie
                       </button>
                     )}
                     <button
-                      onClick={() => handleMessage(booking.id, booking.careSeeker.id)}
+                      onClick={() => handleMessage(booking.id)}
                       className="rounded border border-brand/30 px-4 py-2 text-sm font-medium text-brand hover:bg-brand-light"
                     >
                       Message
@@ -265,7 +265,7 @@ export function CareBookingsClient({ bookings, currentUserId }: CareBookingsClie
                       </button>
                     )}
                     <button
-                      onClick={() => handleMessage(booking.id, booking.caregiver.id)}
+                      onClick={() => handleMessage(booking.id)}
                       className="rounded border border-brand/30 px-4 py-2 text-sm font-medium text-brand hover:bg-brand-light"
                     >
                       Message

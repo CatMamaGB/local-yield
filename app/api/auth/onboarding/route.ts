@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
       const msg = validationResult.error.flatten().formErrors?.[0] ?? "Invalid request";
       return fail(String(msg), { code: "VALIDATION_ERROR", status: 400, requestId });
     }
-    const { termsAccepted, zipCode: zip, roles: roleIds, primaryMode, requestedUrl } = validationResult.data;
+    const { zipCode: zip, roles: roleIds, primaryMode, requestedUrl } = validationResult.data;
 
     const user = await getCurrentUser();
     if (!user) return fail("Unauthorized", { code: "UNAUTHORIZED", status: 401 });
@@ -47,7 +47,6 @@ export async function POST(request: NextRequest) {
           ? roleIds
           : [...roleIds, "BUYER"]
         : ["BUYER"];
-    const isBuyer = true;
     const isProducer = roleIdsWithBuyer?.includes("PRODUCER") ?? undefined;
     const isCaregiver = roleIdsWithBuyer?.includes("CAREGIVER") ?? undefined;
     const isHomesteadOwner = roleIdsWithBuyer?.includes("CARE_SEEKER") ?? undefined;
@@ -89,7 +88,7 @@ export async function POST(request: NextRequest) {
     updateData.isHomesteadOwner = isHomesteadOwner ?? false;
     updateData.role = isProducer ? Role.PRODUCER : Role.BUYER;
 
-    const updated = await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx) => {
       const u = await tx.user.update({
         where: { id: user.id },
         data: updateData as Parameters<typeof tx.user.update>[0]["data"],

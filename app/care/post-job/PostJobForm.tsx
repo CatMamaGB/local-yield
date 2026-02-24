@@ -28,6 +28,7 @@ export function PostJobForm() {
   const [radiusMiles, setRadiusMiles] = useState<number | undefined>(25);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -41,14 +42,16 @@ export function PostJobForm() {
     setSubmitting(true);
 
     try {
-      const data = await apiPost<{ posting: { id: string } }>("/api/help-exchange/postings", {
+      await apiPost<{ posting: { id: string } }>("/api/help-exchange/postings", {
         title: title.trim(),
         description: description.trim(),
         category,
         zipCode: zipCode.trim(),
         radiusMiles: radiusMiles ?? undefined,
       });
-      router.push(`/care/browse?category=${category}`);
+      setError(null);
+      setSuccessMessage("Job posted! Redirecting to your postings…");
+      router.push("/dashboard/job-postings");
     } catch (err) {
       setError(err instanceof ApiError ? apiErrorMessage(err) : (err instanceof Error ? err.message : "Failed to post job"));
     } finally {
@@ -58,6 +61,12 @@ export function PostJobForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5 rounded-xl border border-brand/10 bg-white p-6 shadow-farmhouse">
+      {successMessage && (
+        <InlineAlert variant="success">{successMessage}</InlineAlert>
+      )}
+      {error && (
+        <InlineAlert variant="error">{error}</InlineAlert>
+      )}
       <div>
         <label htmlFor="title" className="block text-sm font-medium text-brand mb-1.5">
           Job title *
@@ -137,8 +146,6 @@ export function PostJobForm() {
           ))}
         </select>
       </div>
-
-      {error && <InlineAlert variant="error">{error}</InlineAlert>}
 
       <div className="flex gap-3">
         <button

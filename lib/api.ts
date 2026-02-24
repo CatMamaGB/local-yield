@@ -28,8 +28,9 @@ export function withRequestId(request: NextRequest | Request): string {
 
 /**
  * Success response helper. Attaches requestId if provided.
+ * Note: For CORS, wrap with addCorsHeaders(response, request) before returning.
  */
-export function ok<T>(data: T, requestId?: string) {
+export function ok<T>(data: T, requestId?: string): NextResponse {
   return NextResponse.json({ ok: true, data, ...(requestId && { requestId }) });
 }
 
@@ -37,6 +38,7 @@ export function ok<T>(data: T, requestId?: string) {
  * Error response helper. Use options object so requestId and extra are unambiguous.
  * Do not leak stack traces or sensitive data in extra.
  * For validation or client-branchable errors, prefer failStructured so clients can rely on error.code.
+ * Note: For CORS, wrap with addCorsHeaders(response, request) before returning.
  */
 export function fail(
   message: string,
@@ -46,7 +48,7 @@ export function fail(
     requestId?: string;
     extra?: Record<string, string | number | boolean | null>;
   }
-) {
+): NextResponse {
   const { code, status = 400, requestId, extra } = opts ?? {};
   return NextResponse.json(
     {
@@ -63,12 +65,13 @@ export function fail(
 /**
  * Structured error response: { ok: false, error: { code, message } }.
  * Prefer this for validation and client-branchable errors so clients can use error.code without string-matching.
+ * Note: For CORS, wrap with addCorsHeaders(response, request) before returning.
  */
 export function failStructured(
   error: { code: string; message: string },
   status: number = 400,
   requestId?: string
-) {
+): NextResponse {
   return NextResponse.json(
     {
       ok: false,
@@ -80,8 +83,24 @@ export function failStructured(
 }
 
 /**
- * Parse JSON body safely with error handling
+ * Helper to wrap API route handlers with CORS support.
+ * Usage:
+ *   export async function GET(request: NextRequest) {
+ *     if (request.method === "OPTIONS") {
+ *       return handleCorsPreflight(request);
+ *     }
+ *     const response = ok(data, requestId);
+ *     return addCorsHeaders(response, request);
+ *   }
  */
+export { addCorsHeaders, handleCorsPreflight } from "./cors";
+
+/**
+ * Parse JSON body safely with error handling.
+ * Default `any` allows property access (body?.mode) across many routes without per-file typings.
+ * Prefer parseJsonBody<YourType>(request) when you need strict typing.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function parseJsonBody<T = any>(request: Request): Promise<{ data?: T; error?: string }> {
   try {
     const data = await request.json();

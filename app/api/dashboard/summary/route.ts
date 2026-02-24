@@ -6,7 +6,7 @@
 import { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getProducerAlertCounts } from "@/lib/dashboard-alerts";
-import { ok, fail } from "@/lib/api";
+import { ok, fail, addCorsHeaders, handleCorsPreflight } from "@/lib/api";
 import { logError } from "@/lib/logger";
 import { getRequestId } from "@/lib/request-id";
 
@@ -28,9 +28,15 @@ export async function GET(request: NextRequest) {
     }
 
     const counts = await getProducerAlertCounts(user.id);
-    return ok(counts);
+    const response = ok(counts, requestId);
+    return addCorsHeaders(response, request);
   } catch (error) {
     logError("dashboard/summary/GET", error, { requestId, path: "/api/dashboard/summary", method: "GET" });
-    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
+    const errorResponse = fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
+    return addCorsHeaders(errorResponse, request);
   }
+}
+
+export async function OPTIONS(request: NextRequest) {
+  return handleCorsPreflight(request) || new Response(null, { status: 403 });
 }

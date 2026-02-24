@@ -19,8 +19,6 @@ import { logCareSearch } from "@/lib/care/telemetry";
 import { buildSearchUrl } from "@/lib/search/url";
 import { SEARCH_KEYS } from "@/lib/search/keys";
 import { listHelpExchangePostings, type HelpExchangePosting } from "@/lib/client/helpExchange";
-import { getCurrentUser } from "@/lib/auth";
-import { getOrCreateConversation } from "@/lib/messaging";
 import { apiPost } from "@/lib/client/api-client";
 import type { AnimalSpecies, CareServiceType, HelpExchangeCategory } from "@prisma/client";
 import { apiGet } from "@/lib/client/api-client";

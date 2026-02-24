@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/client/api-client";
 import { ApiError, apiErrorMessage } from "@/lib/client/api-client";
@@ -311,7 +312,9 @@ function AddProductForm({ onDone, onCancel }: { onDone: (state?: SuccessState) =
 
   useEffect(() => {
     const opts = categoryOptionsForGroup(groupId);
+    // Intentionally exclude categoryId from deps: only reset when groupId changes, not when categoryId changes
     if (!opts.some((o) => o.id === categoryId)) setCategoryId(opts[0]?.id ?? OTHER_CATEGORY_ID);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId]);
 
   async function submit(e: React.FormEvent) {
@@ -489,10 +492,13 @@ function AddProductForm({ onDone, onCancel }: { onDone: (state?: SuccessState) =
         </div>
         {imageUrl && (
           <div className="mt-2 flex items-center gap-2">
-            <img
+            <Image
               src={getProductDisplayImage(imageUrl, categoryId)}
               alt="Preview"
+              width={64}
+              height={64}
               className="h-16 w-16 rounded-lg border border-brand/20 object-cover"
+              unoptimized
             />
             <button
               type="button"
@@ -615,7 +621,9 @@ function EditProductForm({
 
   useEffect(() => {
     const opts = categoryOptionsForGroup(groupId);
+    // Intentionally exclude categoryId from deps: only reset when groupId changes, not when categoryId changes
     if (!opts.some((o) => o.id === categoryId)) setCategoryId(opts[0]?.id ?? OTHER_CATEGORY_ID);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId]);
 
   async function submit(e: React.FormEvent) {
@@ -734,7 +742,7 @@ function EditProductForm({
         </div>
         {imageUrl && (
           <div className="mt-2 flex items-center gap-2">
-            <img src={getProductDisplayImage(imageUrl, categoryId)} alt="Preview" className="h-16 w-16 rounded-lg border border-brand/20 object-cover" />
+            <Image src={getProductDisplayImage(imageUrl, categoryId)} alt="Preview" width={64} height={64} className="h-16 w-16 rounded-lg border border-brand/20 object-cover" unoptimized />
             <button type="button" onClick={() => setImageUrl("")} className="text-sm text-brand/70 hover:text-red-600 underline">Remove</button>
           </div>
         )}

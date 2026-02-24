@@ -4,7 +4,7 @@
  * Admin users list client component.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { apiGet } from "@/lib/client/api-client";
 import { ApiError, apiErrorMessage } from "@/lib/client/api-client";
 import { InlineAlert } from "@/components/ui/InlineAlert";
@@ -30,11 +30,7 @@ export function UsersClient() {
   const [roleFilter, setRoleFilter] = useState<string>("");
   const [capabilityFilter, setCapabilityFilter] = useState<string>("");
 
-  useEffect(() => {
-    fetchUsers();
-  }, [search, roleFilter, capabilityFilter]);
-
-  async function fetchUsers() {
+  const fetchUsers = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -51,7 +47,11 @@ export function UsersClient() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [search, roleFilter, capabilityFilter]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   function getRoles(user: User): string[] {
     const roles: string[] = [];

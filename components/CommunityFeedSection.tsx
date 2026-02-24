@@ -48,6 +48,7 @@ export function CommunityFeedSection({ feed, zip }: CommunityFeedSectionProps) {
     <section className="mx-auto max-w-5xl px-4 py-8">
       <h2 className="font-display text-2xl font-semibold text-brand">What&apos;s happening near you</h2>
       <p className="mt-1 text-brand/80">Upcoming events, farm help jobs, and new listings.</p>
+      <p className="mt-0.5 text-sm text-brand/60">ZIP: {zip}</p>
       <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {feed.events.slice(0, 3).map((e) => (
           <Link

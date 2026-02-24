@@ -6,7 +6,8 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireProducerOrAdmin } from "@/lib/auth";
-import { ok, fail, parseJsonBody } from "@/lib/api";
+import { ok, fail, parseJsonBody, addCorsHeaders, handleCorsPreflight } from "@/lib/api";
+import { mapAuthErrorToResponse } from "@/lib/auth/error-handler";
 import { logError } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getRequestId } from "@/lib/request-id";
@@ -20,12 +21,17 @@ export async function GET(request: NextRequest) {
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },
     });
-    return ok({ products });
+    const response = ok({ products }, requestId);
+    return addCorsHeaders(response, request);
   } catch (e) {
     logError("products/GET", e, { requestId, path: "/api/products", method: "GET" });
-    const message = e instanceof Error ? e.message : "Forbidden";
-    return fail(message, { code: "FORBIDDEN", status: 403 });
+    const errorResponse = mapAuthErrorToResponse(e, requestId);
+    return addCorsHeaders(errorResponse, request);
   }
+}
+
+export async function OPTIONS(request: NextRequest) {
+  return handleCorsPreflight(request) || new Response(null, { status: 403 });
 }
 
 export async function POST(request: NextRequest) {
@@ -102,11 +108,11 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return ok({ product });
+    const response = ok({ product }, requestId);
+    return addCorsHeaders(response, request);
   } catch (e) {
     logError("products/POST", e, { requestId, path: "/api/products", method: "POST" });
-    const message = e instanceof Error ? e.message : "";
-    if (message === "Forbidden") return fail(message, { code: "FORBIDDEN", status: 403 });
-    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
+    const errorResponse = mapAuthErrorToResponse(e, requestId);
+    return addCorsHeaders(errorResponse, request);
   }
 }

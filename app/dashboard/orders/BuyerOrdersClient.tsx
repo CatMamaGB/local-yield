@@ -11,8 +11,6 @@ import { formatDate } from "@/lib/utils";
 import { OrderStatusBadge } from "@/components/OrderStatusBadge";
 import { apiPost, apiPatch } from "@/lib/client/api-client";
 import { ApiError, apiErrorMessage } from "@/lib/client/api-client";
-import { InlineAlert } from "@/components/ui/InlineAlert";
-
 type OrderStatus = "PENDING" | "PAID" | "FULFILLED" | "CANCELED" | "REFUNDED";
 
 interface OrderWithReview {

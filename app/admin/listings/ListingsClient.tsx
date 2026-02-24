@@ -4,7 +4,7 @@
  * Admin listings list client component.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { apiGet } from "@/lib/client/api-client";
 import { ApiError, apiErrorMessage } from "@/lib/client/api-client";
 import { InlineAlert } from "@/components/ui/InlineAlert";
@@ -31,11 +31,7 @@ export function ListingsClient() {
   const [activeFilter, setActiveFilter] = useState<string>("");
   const [search, setSearch] = useState("");
 
-  useEffect(() => {
-    fetchListings();
-  }, [typeFilter, activeFilter, search]);
-
-  async function fetchListings() {
+  const fetchListings = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -52,7 +48,11 @@ export function ListingsClient() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [typeFilter, activeFilter, search]);
+
+  useEffect(() => {
+    fetchListings();
+  }, [fetchListings]);
 
   if (loading) {
     return <LoadingSkeleton rows={10} />;

@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiPost, apiPatch } from "@/lib/client/api-client";
+import { apiPost } from "@/lib/client/api-client";
 import { ApiError, apiErrorMessage } from "@/lib/client/api-client";
 import { MarkFulfilledButton } from "@/components/MarkFulfilledButton";
 import { ReportDialog } from "@/components/ReportDialog";

@@ -4,6 +4,7 @@
  */
 
 import { NextRequest } from "next/server";
+import type { HelpExchangeCategory, HelpExchangeStatus } from "@prisma/client";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, fail, withRequestId } from "@/lib/api";
@@ -25,8 +26,8 @@ export async function GET(request: NextRequest) {
 
     const postings = await prisma.helpExchangePosting.findMany({
       where: {
-        ...(status && { status: status as any }),
-        ...(category && { category: category as any }),
+        ...(status && { status: status as HelpExchangeStatus }),
+        ...(category && { category: category as HelpExchangeCategory }),
       },
       include: {
         createdBy: {

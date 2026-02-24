@@ -6,7 +6,8 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
-import { ok, fail } from "@/lib/api";
+import { ok, fail, addCorsHeaders, handleCorsPreflight } from "@/lib/api";
+import { mapAuthErrorToResponse } from "@/lib/auth/error-handler";
 import { logError } from "@/lib/logger";
 import { getRequestId } from "@/lib/request-id";
 import { ConversationsQuerySchema } from "@/lib/validators";
@@ -75,9 +76,15 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return ok({ items: list, page, pageSize, total, conversations: list });
+    const response = ok({ items: list, page, pageSize, total, conversations: list }, requestId);
+    return addCorsHeaders(response, request);
   } catch (e) {
     logError("dashboard/conversations/GET", e, { requestId, path: "/api/dashboard/conversations", method: "GET" });
-    return fail("Forbidden", { code: "FORBIDDEN", status: 403 });
+    const errorResponse = mapAuthErrorToResponse(e, requestId);
+    return addCorsHeaders(errorResponse, request);
   }
+}
+
+export async function OPTIONS(request: NextRequest) {
+  return handleCorsPreflight(request) || new Response(null, { status: 403 });
 }

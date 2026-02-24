@@ -27,7 +27,7 @@ const MODIFIERS = new Set([
  * remove common modifiers, collapse multiple spaces.
  */
 export function normalizeProductName(name: string): string {
-  let s = name
+  const s = name
     .toLowerCase()
     .trim()
     .replace(/[^\p{L}\p{N}\s]/gu, " ")

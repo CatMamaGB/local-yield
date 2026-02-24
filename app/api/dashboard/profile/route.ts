@@ -6,7 +6,8 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireProducerOrAdmin } from "@/lib/auth";
-import { ok, fail, parseJsonBody } from "@/lib/api";
+import { ok, fail, parseJsonBody, addCorsHeaders, handleCorsPreflight } from "@/lib/api";
+import { mapAuthErrorToResponse } from "@/lib/auth/error-handler";
 import { ProfileUpdateSchema } from "@/lib/validators";
 import { logError } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
       orderBy: { eventDate: "asc" },
       take: 20,
     });
-    return ok({
+    const response = ok({
       user: {
         name: dbUser.name,
         bio: dbUser.bio,
@@ -61,11 +62,12 @@ export async function GET(request: NextRequest) {
         eventDate: e.eventDate.toISOString(),
         eventHours: e.eventHours,
       })),
-    });
+    }, requestId);
+    return addCorsHeaders(response, request);
   } catch (e) {
     logError("dashboard/profile/GET", e, { requestId, path: "/api/dashboard/profile", method: "GET" });
-    const message = e instanceof Error ? e.message : "Forbidden";
-    return fail(message, { code: "FORBIDDEN", status: 403 });
+    const errorResponse = mapAuthErrorToResponse(e, requestId);
+    return addCorsHeaders(errorResponse, request);
   }
 }
 
@@ -176,11 +178,15 @@ export async function PATCH(request: NextRequest) {
       });
     }
 
-    return ok(undefined);
+    const response = ok(undefined, requestId);
+    return addCorsHeaders(response, request);
   } catch (e) {
     logError("dashboard/profile/PATCH", e, { requestId, path: "/api/dashboard/profile", method: "PATCH" });
-    const message = e instanceof Error ? e.message : "";
-    if (message === "Forbidden") return fail(message, { code: "FORBIDDEN", status: 403 });
-    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
+    const errorResponse = mapAuthErrorToResponse(e, requestId);
+    return addCorsHeaders(errorResponse, request);
   }
+}
+
+export async function OPTIONS(request: NextRequest) {
+  return handleCorsPreflight(request) || new Response(null, { status: 403 });
 }

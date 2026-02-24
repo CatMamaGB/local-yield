@@ -7,14 +7,14 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { apiGet, apiPost } from "@/lib/client/api-client";
 import { ApiError, apiErrorMessage } from "@/lib/client/api-client";
 import { InlineAlert } from "@/components/ui/InlineAlert";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
 
-interface ConversationRow {
+export interface ConversationRow {
   id: string;
   other: { id: string; name: string | null; email: string };
   orderId: string | null;
@@ -45,7 +45,6 @@ interface DashboardMessagesClientProps {
 
 export function DashboardMessagesClient({ initialConversations = [] }: DashboardMessagesClientProps) {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const conversationIdFromUrl = searchParams.get("conversationId") ?? searchParams.get("conversation");
   const [conversations, setConversations] = useState<ConversationRow[]>(initialConversations);
   const [thread, setThread] = useState<ThreadData | null>(null);

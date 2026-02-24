@@ -2,7 +2,7 @@
  * Auth types shared between server and client.
  */
 
-import type { Role } from "@/types";
+import type { Role } from "@local-yield/shared/types";
 import type { PrimaryMode } from "../redirects";
 
 export interface SessionUser {

@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     });
 
     return ok({ message: "Onboarding state reset. Revisit /auth/onboarding to test." });
-  } catch (e) {
+  } catch {
     return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500 });
   }
 }

@@ -11,7 +11,7 @@ export async function getCreditBalance(userId: string, producerId: string): Prom
     where: {
       userId,
       producerId,
-      ...(undefined as any), // optional: expiresAt: { gt: new Date() } when we use expiry
+      // optional: add expiresAt: { gt: new Date() } when we use expiry
     },
     _sum: { amountCents: true },
   });

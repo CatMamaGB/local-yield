@@ -2,8 +2,6 @@
  * URL building utilities for canonical search URLs.
  */
 
-import { SEARCH_KEYS } from "./keys";
-
 /**
  * Build a canonical search URL with normalized parameters.
  * Removes undefined values, sorts keys for consistency.

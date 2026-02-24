@@ -6,7 +6,7 @@
 import Link from "next/link";
 import { DeliveryBadge } from "./DeliveryBadge";
 import { formatPrice } from "@/lib/utils";
-import type { BrowseListing } from "@/types/listings";
+import type { BrowseListing } from "@local-yield/shared/types/listings";
 
 export interface ListingRowProps {
   listing: BrowseListing;

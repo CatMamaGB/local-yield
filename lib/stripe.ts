@@ -21,6 +21,7 @@ export interface CheckoutMetadata {
  * Create a Checkout session (local pickup, no shipping).
  * metadata.context: "market" | "care"; metadata.orderId for linking.
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- stub param for future impl
 export async function createCheckoutSession(_params: {
   lineItems: Array<{ priceIdOrPrice: string; quantity: number }>;
   successUrl: string;
@@ -37,7 +38,9 @@ export async function createCheckoutSession(_params: {
  * Verify webhook signature in API route (payment_intent.succeeded, etc.).
  */
 export function constructWebhookEvent(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- stub
   _payload: string | Buffer,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- stub
   _signature: string
 ): { type: string; data: { object: unknown } } | null {
   if (!process.env.STRIPE_WEBHOOK_SECRET) return null;

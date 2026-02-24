@@ -5,7 +5,7 @@
  * Requires dev server running (defaults to http://localhost:3000).
  */
 
-const HELP_EXCHANGE_TEST_HELP_EXCHANGE_TEST_BASE_URL = process.env.TEST_API_URL || "http://localhost:3000";
+const HELP_EXCHANGE_TEST_BASE_URL = process.env.TEST_API_URL || "http://localhost:3000";
 
 interface TestResult {
   name: string;

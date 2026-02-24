@@ -65,7 +65,6 @@ export default async function DashboardPage() {
   
   const hasOrders = producerOrders.length > 0;
   const recentOrders = producerOrders.slice(0, 5);
-  const totalOrders = producerOrders.length;
 
   const hasAlerts =
     alertCounts.pendingOrdersCount > 0 ||

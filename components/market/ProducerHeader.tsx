@@ -3,6 +3,7 @@
  * Name, bio, optional image, delivery badge; About Us, Story, Upcoming Events, Contact.
  */
 
+import Image from "next/image";
 import { DeliveryBadge } from "./DeliveryBadge";
 
 export interface UpcomingEventForDisplay {
@@ -54,10 +55,13 @@ export function ProducerHeader({
       <header className="rounded-xl border border-brand/20 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap gap-6">
           {profileImageUrl && (
-            <img
+            <Image
               src={profileImageUrl}
               alt={name || "Producer"}
+              width={128}
+              height={128}
               className="h-32 w-32 shrink-0 rounded-lg border border-brand/20 object-cover"
+              unoptimized
             />
           )}
           <div className="min-w-0 flex-1">

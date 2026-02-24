@@ -66,7 +66,7 @@ export async function getFeed(zip: string | null, radius: number = DEFAULT_RADIU
     }),
   ]);
 
-  const withDistance = (item: { user?: { zipCode: string } }) =>
+  const withDistance = (item: { user?: { zipCode: string | null } }) =>
     zip && item.user?.zipCode ? getDistanceBetweenZips(zip, item.user.zipCode) : null;
 
   const eventsFiltered = zip

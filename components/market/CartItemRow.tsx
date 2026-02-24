@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useCart } from "@/contexts/CartContext";
 import { formatPrice } from "@/lib/utils";
 import type { CartItem } from "@/contexts/CartContext";
@@ -15,7 +16,7 @@ export function CartItemRow({ item }: CartItemRowProps) {
     <li className="flex items-center gap-4 rounded-xl border border-brand/20 bg-white p-4">
       <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg bg-brand-light">
         {item.imageUrl ? (
-          <img src={item.imageUrl} alt={item.title} className="h-full w-full object-cover" />
+          <Image src={item.imageUrl} alt={item.title} width={64} height={64} className="h-full w-full object-cover" unoptimized />
         ) : (
           <span className="flex h-full items-center justify-center text-xs text-brand/50">No image</span>
         )}

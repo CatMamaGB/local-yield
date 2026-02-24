@@ -3,9 +3,9 @@
  */
 
 import { redirect } from "next/navigation";
-import { getCurrentUser, requireAuth } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { DashboardMessagesClient } from "./DashboardMessagesClient";
+import { DashboardMessagesClient, type ConversationRow } from "./DashboardMessagesClient";
 import { PageHeader } from "@/components/ui/PageHeader";
 
 export default async function DashboardMessagesPage() {
@@ -13,7 +13,7 @@ export default async function DashboardMessagesPage() {
   if (!user) redirect("/auth/login");
 
   // Fetch conversations server-side to avoid client-side loading state
-  let initialConversations: any[] = [];
+  let initialConversations: ConversationRow[] = [];
   try {
     const conversations = await prisma.conversation.findMany({
       where: {

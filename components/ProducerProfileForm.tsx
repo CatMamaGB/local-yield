@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { PickupNotesField } from "./PickupNotesField";
 import { DeliverySettings } from "./DeliverySettings";
@@ -199,11 +200,14 @@ export function ProducerProfileForm({ onSaved }: ProducerProfileFormProps) {
             placeholder="https://..."
           />
           {profileImageUrl && (
-            <img
+            <Image
               src={profileImageUrl}
               alt="Preview"
+              width={96}
+              height={96}
               className="h-24 w-24 rounded border border-brand/20 object-cover"
               onError={(e) => (e.currentTarget.style.display = "none")}
+              unoptimized
             />
           )}
         </div>
