@@ -1,7 +1,8 @@
 /**
  * Proxy: admin 403 (dev) + lastActiveMode cookie + staging gate (Basic Auth) + Clerk auth.
  * - /admin/* in dev: 403 for non-admins (__dev_user !== "ADMIN").
- * - /market, /care, /dashboard: set __last_active_mode cookie (Next.js 16 only allows cookie mutation here, not in layouts).
+ * - In production, /admin is protected by admin layout (redirect to /admin/forbidden for non-admins).
+ * - /market, /care, /dashboard: set __last_active_mode cookie.
  * - APP_GATE_ENABLED=true: Basic Auth for staging.
  * - Clerk: protect dashboard/API when configured.
  */

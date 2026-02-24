@@ -269,8 +269,25 @@ export async function initiateCheckout(_params: {
   return { redirectUrl: null };
 }
 
-/** Orders placed by buyer (for "Your orders"). Includes line items or legacy product. */
-export async function getOrdersForBuyer(buyerId: string) {
+/** Default max orders per page for list endpoints (avoids unbounded queries). */
+export const DEFAULT_ORDERS_PAGE_SIZE = 100;
+export const MAX_ORDERS_PAGE_SIZE = 200;
+
+/** Options for paginated order lists. */
+export interface OrdersListOptions {
+  /** Max number of orders to return. Default DEFAULT_ORDERS_PAGE_SIZE; cap at MAX_ORDERS_PAGE_SIZE. */
+  limit?: number;
+  /** Number of orders to skip (for cursor-less pagination). Default 0. */
+  skip?: number;
+}
+
+/** Orders placed by buyer (for "Your orders"). Includes line items or legacy product. Paginated. */
+export async function getOrdersForBuyer(buyerId: string, options?: OrdersListOptions) {
+  const limit = Math.min(
+    MAX_ORDERS_PAGE_SIZE,
+    Math.max(1, options?.limit ?? DEFAULT_ORDERS_PAGE_SIZE)
+  );
+  const skip = Math.max(0, options?.skip ?? 0);
   return prisma.order.findMany({
     where: { buyerId },
     include: {
@@ -279,11 +296,18 @@ export async function getOrdersForBuyer(buyerId: string) {
       producer: { select: { id: true, name: true } },
     },
     orderBy: { createdAt: "desc" },
+    take: limit,
+    skip,
   });
 }
 
-/** Orders to fulfill by producer. Includes line items or legacy product. */
-export async function getOrdersForProducer(producerId: string) {
+/** Orders to fulfill by producer. Includes line items or legacy product. Paginated. */
+export async function getOrdersForProducer(producerId: string, options?: OrdersListOptions) {
+  const limit = Math.min(
+    MAX_ORDERS_PAGE_SIZE,
+    Math.max(1, options?.limit ?? DEFAULT_ORDERS_PAGE_SIZE)
+  );
+  const skip = Math.max(0, options?.skip ?? 0);
   return prisma.order.findMany({
     where: { producerId },
     include: {
@@ -292,6 +316,8 @@ export async function getOrdersForProducer(producerId: string) {
       buyer: { select: { id: true, name: true } },
     },
     orderBy: { createdAt: "desc" },
+    take: limit,
+    skip,
   });
 }
 
@@ -311,8 +337,13 @@ export async function getOrderByIdForUser(orderId: string, userId: string, isAdm
   return null;
 }
 
-/** Paid or fulfilled orders for producer — lightweight for analytics pages. */
-export async function getPaidOrdersForProducer(producerId: string) {
+/** Paid or fulfilled orders for producer — lightweight for analytics pages. Paginated. */
+export async function getPaidOrdersForProducer(producerId: string, options?: OrdersListOptions) {
+  const limit = Math.min(
+    MAX_ORDERS_PAGE_SIZE,
+    Math.max(1, options?.limit ?? DEFAULT_ORDERS_PAGE_SIZE)
+  );
+  const skip = Math.max(0, options?.skip ?? 0);
   return prisma.order.findMany({
     where: {
       producerId,
@@ -332,5 +363,7 @@ export async function getPaidOrdersForProducer(producerId: string) {
       },
     },
     orderBy: { createdAt: "desc" },
+    take: limit,
+    skip,
   });
 }

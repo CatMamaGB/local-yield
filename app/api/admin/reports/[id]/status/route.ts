@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { updateReportStatus } from "@/lib/reports";
 import { ok, fail, parseJsonBody, withRequestId } from "@/lib/api";
 import { logError } from "@/lib/logger";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { z } from "zod";
 
 const UpdateReportStatusSchema = z.object({
@@ -20,6 +21,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const requestId = withRequestId(request);
+  const rateLimitRes = await checkRateLimit(request, undefined, requestId);
+  if (rateLimitRes) return rateLimitRes;
+
   try {
     const admin = await requireAdmin();
     const { id } = await params;

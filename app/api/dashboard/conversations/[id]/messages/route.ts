@@ -7,6 +7,7 @@ import { requireAuth } from "@/lib/auth";
 import { sendMessage } from "@/lib/messaging";
 import { ok, fail, parseJsonBody } from "@/lib/api";
 import { logError } from "@/lib/logger";
+import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limit";
 import { getRequestId } from "@/lib/request-id";
 import { SendMessageSchema } from "@/lib/validators";
 
@@ -15,6 +16,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const requestId = getRequestId(request);
+  const rateLimitRes = await checkRateLimit(request, RATE_LIMIT_PRESETS.MESSAGES, requestId);
+  if (rateLimitRes) return rateLimitRes;
+
   try {
     const user = await requireAuth();
     const { id: conversationId } = await params;

@@ -1,0 +1,35 @@
+# CI: lint, audit, and Prisma validate on push and PR
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Audit (fail on high/critical)
+        run: npm run audit:ci
+
+      - name: Prisma validate
+        run: npx prisma validate
+
+      - name: TypeScript check
+        run: npx tsc --noEmit

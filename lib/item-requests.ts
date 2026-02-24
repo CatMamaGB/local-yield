@@ -23,7 +23,10 @@ export async function createItemRequest(input: CreateItemRequestInput) {
   });
 }
 
-/** List open item requests within radius (miles) of producer ZIP. */
+/** Max item requests to return in list endpoints (avoids unbounded queries). */
+const MAX_ITEM_REQUESTS = 100;
+
+/** List open item requests within radius (miles) of producer ZIP. Capped at MAX_ITEM_REQUESTS. */
 export async function listItemRequestsByRadius(zipCode: string, radiusMiles: number) {
   const zip = zipCode.trim().slice(0, 5);
   if (!zip) return [];
@@ -31,6 +34,7 @@ export async function listItemRequestsByRadius(zipCode: string, radiusMiles: num
     where: { status: "open" },
     include: { requester: { select: { id: true, name: true } } },
     orderBy: { createdAt: "desc" },
+    take: MAX_ITEM_REQUESTS,
   });
   const withDistance = all
     .map((r) => {
@@ -42,10 +46,11 @@ export async function listItemRequestsByRadius(zipCode: string, radiusMiles: num
   return withDistance.sort((a, b) => a.distance - b.distance);
 }
 
-/** List item requests created by a user (for "my requests"). */
+/** List item requests created by a user (for "my requests"). Capped at MAX_ITEM_REQUESTS. */
 export async function listItemRequestsByRequester(requesterId: string) {
   return prisma.itemRequest.findMany({
     where: { requesterId },
     orderBy: { createdAt: "desc" },
+    take: MAX_ITEM_REQUESTS,
   });
 }

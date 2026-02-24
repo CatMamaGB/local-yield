@@ -37,6 +37,8 @@ For **staging**, you can gate the app with HTTP Basic Auth. When `APP_GATE_ENABL
 
 **Security:** Dependency advisories are tracked and documented. Production deps are kept free of high/critical issues; dev-only moderate findings are accepted with a documented decision. See **[docs/security-audit.md](docs/security-audit.md)**. Run `npm run audit:ci` in CI to fail only on high/critical.
 
+**CI:** GitHub Actions (`.github/workflows/ci.yml`) runs on push/PR to `main` and `master`: lint, `audit:ci`, Prisma validate, and TypeScript check.
+
 ## Setup
 
 1. **Install dependencies**
@@ -285,6 +287,8 @@ The repo is structured for production: App Router by feature, domain-oriented `l
 
 ## Recent updates
 
+- ✅ **Stripe readiness:** [docs/stripe-ready-checklist.md](docs/stripe-ready-checklist.md) — checklist for wiring Stripe (webhook, PATCH guard, idempotency); order APIs prepared for card vs cash flows.
+- ✅ **CI:** GitHub Actions workflow for lint, security audit, Prisma validate, and TypeScript check.
 - ✅ **Phase 3 mobile readiness:** Token auth (Clerk JWT + dev token), CORS on mobile endpoints, 401/403 error handling (`lib/auth/error-handler.ts`), shared types in `packages/shared`
 - ✅ Custom auth system with signup, login, and onboarding
 - ✅ Role-based access control (buyer, producer, caregiver, admin)
@@ -309,7 +313,7 @@ The repo is structured for production: App Router by feature, domain-oriented `l
 
 ## Next steps
 
-- [ ] Stripe integration (one-time + subscriptions)
+- [ ] Stripe integration (one-time + subscriptions) — see [docs/stripe-ready-checklist.md](docs/stripe-ready-checklist.md) for implementation steps
 - [ ] Location radius filter refinement (ZIP-based search)
 - [ ] Cloudinary image upload integration
 - [ ] Real-time messaging with WebSockets
@@ -362,6 +366,7 @@ Detailed documentation is available in the `/docs` folder:
 - **[token-auth-production-fix.md](docs/token-auth-production-fix.md)** — Token auth production safety
 - **[cors-rollout-checklist.md](docs/cors-rollout-checklist.md)** — CORS rollout checklist
 - **[types-migration-completion.md](docs/types-migration-completion.md)** — Shared types migration
+- **[stripe-ready-checklist.md](docs/stripe-ready-checklist.md)** — Stripe integration readiness (webhook, PATCH guard, idempotency)
 
 ## Development notes
 

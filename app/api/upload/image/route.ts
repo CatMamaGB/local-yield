@@ -9,6 +9,7 @@ import { NextRequest } from "next/server";
 import { ok, fail } from "@/lib/api";
 import { getRequestId } from "@/lib/request-id";
 import { requireProducerOrAdmin } from "@/lib/auth";
+import { checkRateLimit } from "@/lib/rate-limit";
 import {
   validateImageMagicBytes,
   getImageDimensions,
@@ -20,6 +21,9 @@ const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
 export async function POST(request: NextRequest) {
   const requestId = getRequestId(request);
+  const rateLimitRes = await checkRateLimit(request, undefined, requestId);
+  if (rateLimitRes) return rateLimitRes;
+
   try {
     await requireProducerOrAdmin();
   } catch {

@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { updateReportAdmin, getReportById } from "@/lib/reports";
 import { ok, fail, parseJsonBody, withRequestId } from "@/lib/api";
 import { logError } from "@/lib/logger";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { z } from "zod";
 
 const UpdateReportAdminSchema = z.object({
@@ -24,6 +25,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const requestId = withRequestId(request);
+  const rateLimitRes = await checkRateLimit(request, undefined, requestId);
+  if (rateLimitRes) return rateLimitRes;
+
   let admin: Awaited<ReturnType<typeof requireAdmin>>;
   try {
     admin = await requireAdmin();

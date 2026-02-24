@@ -8,6 +8,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, fail, parseJsonBody } from "@/lib/api";
 import { logError } from "@/lib/logger";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { getRequestId } from "@/lib/request-id";
 
 export async function POST(
@@ -15,6 +16,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const requestId = getRequestId(request);
+  const rateLimitRes = await checkRateLimit(request, undefined, requestId);
+  if (rateLimitRes) return rateLimitRes;
+
   try {
     const user = await getCurrentUser();
     if (!user) return fail("Unauthorized", { code: "UNAUTHORIZED", status: 401, requestId });

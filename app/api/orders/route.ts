@@ -12,55 +12,50 @@ import { CreateOrderSchema } from "@/lib/validators";
 import { logError } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getRequestId } from "@/lib/request-id";
+import { withRequestLogging } from "@/lib/api/with-request-logging";
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   const requestId = getRequestId(request);
   const rateLimitRes = await checkRateLimit(request, undefined, requestId);
   if (rateLimitRes) return rateLimitRes;
 
   try {
-    // Authenticate user
     const user = await getCurrentUser();
     if (!user) {
-      return fail("Unauthorized", { code: "UNAUTHORIZED", status: 401 });
+      return fail("Unauthorized", { code: "UNAUTHORIZED", status: 401, requestId });
     }
 
-    // Parse and validate request body
     const { data: body, error: parseError } = await parseJsonBody(request);
     if (parseError) {
-      return fail(parseError, { code: "INVALID_JSON", status: 400 });
+      return fail(parseError, { code: "INVALID_JSON", status: 400, requestId });
     }
 
-    // Validate request body with Zod
     const validationResult = CreateOrderSchema.safeParse(body);
     if (!validationResult.success) {
       const firstError = validationResult.error.issues[0];
-      return fail(firstError?.message || "Invalid request", { code: "VALIDATION_ERROR", status: 400 });
+      return fail(firstError?.message || "Invalid request", { code: "VALIDATION_ERROR", status: 400, requestId });
     }
 
     const { producerId, items, fulfillmentType, notes, pickupDate, appliedCreditCents, idempotencyKey } = validationResult.data;
 
-    // Validate quantities (reject invalid, don't clamp silently)
     for (const item of items) {
       if (item.quantity < 1 || item.quantity > 999) {
-        return fail(`Quantity must be between 1 and 999 for product ${item.productId}`, { code: "INVALID_QUANTITY", status: 400 });
+        return fail(`Quantity must be between 1 and 999 for product ${item.productId}`, { code: "INVALID_QUANTITY", status: 400, requestId });
       }
     }
 
-    // Fetch producer and delivery settings (legacy isProducer; prefer userRoles: { some: { role: "PRODUCER" } } when refactoring)
     const producer = await prisma.user.findFirst({
       where: { id: producerId, isProducer: true },
       include: { producerProfile: { select: { deliveryFeeCents: true, offersDelivery: true } } },
     });
 
     if (!producer) {
-      return fail("Producer not found", { code: "PRODUCER_NOT_FOUND", status: 404 });
+      return fail("Producer not found", { code: "PRODUCER_NOT_FOUND", status: 404, requestId });
     }
 
-    // Validate fulfillment type
     const finalFulfillmentType = fulfillmentType ?? "PICKUP";
     if (finalFulfillmentType === "DELIVERY" && !producer.producerProfile?.offersDelivery) {
-      return fail("Producer does not offer delivery", { code: "DELIVERY_NOT_AVAILABLE", status: 400 });
+      return fail("Producer does not offer delivery", { code: "DELIVERY_NOT_AVAILABLE", status: 400, requestId });
     }
 
     let deliveryFeeCents = 0;
@@ -68,7 +63,6 @@ export async function POST(request: NextRequest) {
       deliveryFeeCents = producer.producerProfile?.deliveryFeeCents ?? 0;
     }
 
-    // Create order (createOrder handles credit balance + idempotency internally)
     const result = await createOrder({
       buyerId: user.id,
       producerId,
@@ -87,7 +81,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!result) {
-      return fail("Failed to create order", { code: "ORDER_CREATION_FAILED", status: 500 });
+      return fail("Failed to create order", { code: "ORDER_CREATION_FAILED", status: 500, requestId });
     }
 
     return ok({
@@ -98,18 +92,20 @@ export async function POST(request: NextRequest) {
     logError("orders/POST", error, { requestId, path: "/api/orders", method: "POST" });
     if (error instanceof Error) {
       if (error.message.includes("not found") || error.message.includes("NOT_FOUND")) {
-        return fail(error.message, { code: "NOT_FOUND", status: 404 });
+        return fail(error.message, { code: "NOT_FOUND", status: 404, requestId });
       }
       if (error.message.includes("invalid") || error.message.includes("INVALID")) {
-        return fail(error.message, { code: "VALIDATION_ERROR", status: 400 });
+        return fail(error.message, { code: "VALIDATION_ERROR", status: 400, requestId });
       }
       if (error.message.includes("stock") || error.message.includes("STOCK")) {
-        return fail(error.message, { code: "OUT_OF_STOCK", status: 400 });
+        return fail(error.message, { code: "OUT_OF_STOCK", status: 400, requestId });
       }
       if (error.message.includes("credit") || (error as { code?: string }).code === "INSUFFICIENT_CREDIT") {
-        return fail(error.message, { code: "INSUFFICIENT_CREDIT", status: 400 });
+        return fail(error.message, { code: "INSUFFICIENT_CREDIT", status: 400, requestId });
       }
     }
     return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
   }
 }
+
+export const POST = withRequestLogging(postHandler);

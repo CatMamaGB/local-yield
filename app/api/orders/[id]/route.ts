@@ -12,6 +12,7 @@ import { UpdateOrderStatusSchema } from "@/lib/validators";
 import { logError } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getRequestId } from "@/lib/request-id";
+import { withRequestLogging } from "@/lib/api/with-request-logging";
 
 type OrderStatus = "PENDING" | "PAID" | "FULFILLED" | "CANCELED" | "REFUNDED";
 
@@ -30,16 +31,17 @@ function isValidTransition(from: OrderStatus, to: OrderStatus): boolean {
   return VALID_TRANSITIONS[from]?.includes(to) ?? false;
 }
 
-export async function GET(
+async function getOrderHandler(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context?: { params: Promise<{ id: string }> }
 ) {
   const requestId = getRequestId(request);
   try {
     const user = await getCurrentUser();
     if (!user) return fail("Unauthorized", { code: "UNAUTHORIZED", status: 401, requestId });
 
-    const { id } = await params;
+    const { id } = await (context?.params ?? Promise.resolve({ id: "" }));
+    if (!id) return fail("Order ID required", { code: "VALIDATION_ERROR", status: 400, requestId });
     const order = await getOrderByIdForUser(id, user.id, user.role === "ADMIN");
     if (!order) {
       return fail("Order not found", { code: "NOT_FOUND", status: 404, requestId });
@@ -83,9 +85,9 @@ export async function GET(
   }
 }
 
-export async function PATCH(
+async function patchHandler(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context?: { params: Promise<{ id: string }> }
 ) {
   const requestId = getRequestId(request);
   const rateLimitRes = await checkRateLimit(request, undefined, requestId);
@@ -93,7 +95,8 @@ export async function PATCH(
 
   try {
     const user = await requireProducerOrAdmin();
-    const { id } = await params;
+    const { id } = await (context?.params ?? Promise.resolve({ id: "" }));
+    if (!id) return fail("Order ID required", { code: "VALIDATION_ERROR", status: 400, requestId });
 
     // Fetch current order (include viaCash for paid-state guardrail)
     const order = await prisma.order.findUnique({
@@ -102,25 +105,25 @@ export async function PATCH(
     });
 
     if (!order) {
-      return fail("Order not found", { code: "NOT_FOUND", status: 404 });
+      return fail("Order not found", { code: "NOT_FOUND", status: 404, requestId });
     }
 
     // Authorization check
     if (order.producerId !== user.id && user.role !== "ADMIN") {
-      return fail("Forbidden", { code: "FORBIDDEN", status: 403 });
+      return fail("Forbidden", { code: "FORBIDDEN", status: 403, requestId });
     }
 
     // Parse and validate request body
     const { data: body, error: parseError } = await parseJsonBody(request);
     if (parseError) {
-      return fail(parseError, { code: "INVALID_JSON", status: 400 });
+      return fail(parseError, { code: "INVALID_JSON", status: 400, requestId });
     }
 
     // Validate status with Zod
     const validationResult = UpdateOrderStatusSchema.safeParse(body);
     if (!validationResult.success) {
       const firstError = validationResult.error.issues[0];
-      return fail(firstError?.message || "Invalid status", { code: "VALIDATION_ERROR", status: 400 });
+      return fail(firstError?.message || "Invalid status", { code: "VALIDATION_ERROR", status: 400, requestId });
     }
 
     const newStatus = validationResult.data.status as OrderStatus;
@@ -128,13 +131,14 @@ export async function PATCH(
 
     // Validate status transition
     if (currentStatus === newStatus) {
-      return fail(`Order is already ${newStatus}`, { code: "NO_CHANGE", status: 400 });
+      return fail(`Order is already ${newStatus}`, { code: "NO_CHANGE", status: 400, requestId });
     }
 
     if (!isValidTransition(currentStatus, newStatus)) {
       return fail(`Invalid status transition: ${currentStatus} → ${newStatus}`, {
         code: "INVALID_TRANSITION",
         status: 400,
+        requestId,
       });
     }
 
@@ -143,6 +147,7 @@ export async function PATCH(
       return fail("Order cannot be marked PAID here; card payments require Stripe confirmation", {
         code: "INVALID_TRANSITION",
         status: 400,
+        requestId,
       });
     }
 
@@ -169,8 +174,11 @@ export async function PATCH(
   } catch (error) {
     logError("orders/PATCH", error, { requestId, path: "/api/orders/[id]", method: "PATCH" });
     if (error instanceof Error && error.message.includes("Forbidden")) {
-      return fail(error.message, { code: "FORBIDDEN", status: 403 });
+      return fail(error.message, { code: "FORBIDDEN", status: 403, requestId });
     }
     return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
   }
 }
+
+export const GET = withRequestLogging(getOrderHandler);
+export const PATCH = withRequestLogging(patchHandler);
