@@ -1,5 +1,6 @@
 /**
- * GET /api/request-logs - View request logs (admin only)
+ * GET /api/request-logs - View request logs (admin only).
+ * For pagination and richer filters (since, method, statusMin/Max, includeIp), use GET /api/admin/request-logs.
  * Query params: limit, route, statusCode, userId
  */
 

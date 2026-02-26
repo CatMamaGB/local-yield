@@ -55,6 +55,11 @@ const withClerk = clerkMiddleware(async (auth, req) => {
   if (isProtectedRoute(req)) {
     await auth.protect();
   }
+  // Server-side admin gating: require auth for /admin/* except /admin/login (production defense-in-depth).
+  const pathname = req.nextUrl.pathname;
+  if (pathname.startsWith("/admin") && pathname !== "/admin/login") {
+    await auth.protect();
+  }
 });
 
 export default async function proxy(req: NextRequest, event: NextFetchEvent) {

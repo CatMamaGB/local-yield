@@ -32,7 +32,9 @@ export function withRequestId(request: NextRequest | Request): string {
  * Note: For CORS, wrap with addCorsHeaders(response, request) before returning.
  */
 export function ok<T>(data: T, requestId?: string): NextResponse {
-  return NextResponse.json({ ok: true, data, ...(requestId && { requestId }) });
+  const res = NextResponse.json({ ok: true, data, ...(requestId && { requestId }) });
+  if (requestId) res.headers.set("X-Request-Id", requestId);
+  return res;
 }
 
 /**
@@ -51,7 +53,7 @@ export function fail(
   }
 ): NextResponse {
   const { code, status = 400, requestId, extra } = opts ?? {};
-  return NextResponse.json(
+  const res = NextResponse.json(
     {
       ok: false,
       error: message,
@@ -61,6 +63,8 @@ export function fail(
     },
     { status }
   );
+  if (requestId) res.headers.set("X-Request-Id", requestId);
+  return res;
 }
 
 /**
@@ -73,7 +77,7 @@ export function failStructured(
   status: number = 400,
   requestId?: string
 ): NextResponse {
-  return NextResponse.json(
+  const res = NextResponse.json(
     {
       ok: false,
       error: { code: error.code, message: error.message },
@@ -81,6 +85,8 @@ export function failStructured(
     },
     { status }
   );
+  if (requestId) res.headers.set("X-Request-Id", requestId);
+  return res;
 }
 
 /**

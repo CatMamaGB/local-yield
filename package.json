@@ -14,6 +14,7 @@
     "test:caregivers": "tsx scripts/test-caregivers-api.ts",
     "test:help-exchange": "tsx scripts/test-help-exchange-api.ts",
     "test:booking-idempotency": "tsx scripts/test-booking-idempotency.ts",
+    "test:auth-cors": "tsx scripts/test-auth-cors.ts",
     "audit:api-contracts": "tsx scripts/audit-api-contracts.ts",
     "audit:ci": "npm audit --audit-level=high"
   },
