@@ -23,16 +23,16 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth();
     const { data: body, error: parseError } = await parseJsonBody(request);
-    if (parseError) return fail(parseError, { code: "INVALID_JSON", status: 400, requestId });
+    if (parseError) return addCorsHeaders(fail(parseError, { code: "INVALID_JSON", status: 400, requestId }), request);
 
     const validation = CreateConversationSchema.safeParse(body);
     if (!validation.success) {
       const first = validation.error.issues[0];
-      return fail(first?.message ?? "Invalid request", { code: "VALIDATION_ERROR", status: 400, requestId });
+      return addCorsHeaders(fail(first?.message ?? "Invalid request", { code: "VALIDATION_ERROR", status: 400, requestId }), request);
     }
 
     if (validation.data.userId === user.id) {
-      return fail("Cannot create conversation with yourself", { code: "VALIDATION_ERROR", status: 400, requestId });
+      return addCorsHeaders(fail("Cannot create conversation with yourself", { code: "VALIDATION_ERROR", status: 400, requestId }), request);
     }
 
     const conversation = await getOrCreateConversation({

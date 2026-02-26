@@ -4,7 +4,7 @@
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { addCorsHeaders, handleCorsPreflight } from "./cors";
+import { addCorsHeaders } from "./cors";
 import { getRequestId } from "./request-id";
 
 /**

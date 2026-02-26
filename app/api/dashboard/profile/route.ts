@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
         producerProfile: true,
       },
     });
-    if (!dbUser) return fail("Not found", { code: "NOT_FOUND", status: 404 });
+    if (!dbUser) return addCorsHeaders(fail("Not found", { code: "NOT_FOUND", status: 404, requestId }), request);
     const profile = dbUser.producerProfile;
     const upcomingEvents = await prisma.event.findMany({
       where: { userId: user.id, eventDate: { gte: new Date() } },
@@ -82,14 +82,14 @@ export async function PATCH(request: NextRequest) {
     // Parse and validate request body
     const { data: body, error: parseError } = await parseJsonBody(request);
     if (parseError) {
-      return fail(parseError, { code: "INVALID_JSON", status: 400 });
+      return addCorsHeaders(fail(parseError, { code: "INVALID_JSON", status: 400, requestId }), request);
     }
 
     // Validate ZIP code if provided
     if (body.zipCode !== undefined) {
       const zipValidation = ProfileUpdateSchema.shape.zipCode.safeParse(body.zipCode);
       if (!zipValidation.success) {
-        return fail("Invalid ZIP code. Must be a valid 5-digit ZIP code.", { code: "INVALID_ZIP", status: 400 });
+        return addCorsHeaders(fail("Invalid ZIP code. Must be a valid 5-digit ZIP code.", { code: "INVALID_ZIP", status: 400, requestId }), request);
       }
     }
 
@@ -97,7 +97,7 @@ export async function PATCH(request: NextRequest) {
     if (body.pickupZipCode !== null && body.pickupZipCode !== undefined) {
       const pickupZipValidation = ProfileUpdateSchema.shape.pickupZipCode.safeParse(body.pickupZipCode);
       if (!pickupZipValidation.success) {
-        return fail("Invalid pickup ZIP code. Must be a valid 5-digit ZIP code.", { code: "INVALID_PICKUP_ZIP", status: 400 });
+        return addCorsHeaders(fail("Invalid pickup ZIP code. Must be a valid 5-digit ZIP code.", { code: "INVALID_PICKUP_ZIP", status: 400, requestId }), request);
       }
     }
 
@@ -124,10 +124,10 @@ export async function PATCH(request: NextRequest) {
     const acceptInAppMessagesOnly = body.acceptInAppMessagesOnly !== undefined ? Boolean(body.acceptInAppMessagesOnly) : undefined;
 
     if (contactEmail !== undefined && contactEmail && !ProfileUpdateSchema.shape.contactEmail.safeParse(contactEmail).success) {
-      return fail("Invalid contact email.", { code: "INVALID_EMAIL", status: 400 });
+      return addCorsHeaders(fail("Invalid contact email.", { code: "INVALID_EMAIL", status: 400, requestId }), request);
     }
     if (profileImageUrl !== undefined && profileImageUrl && !ProfileUpdateSchema.shape.profileImageUrl.safeParse(profileImageUrl).success) {
-      return fail("Invalid profile image URL.", { code: "INVALID_URL", status: 400 });
+      return addCorsHeaders(fail("Invalid profile image URL.", { code: "INVALID_URL", status: 400, requestId }), request);
     }
 
     if (name !== undefined || bio !== undefined || zipCode !== undefined) {

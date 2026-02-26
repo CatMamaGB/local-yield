@@ -42,29 +42,32 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireProducerOrAdmin();
     const { data: body, error: parseError } = await parseJsonBody(request);
-    if (parseError) return fail(parseError, { code: "INVALID_JSON", status: 400, requestId });
+    if (parseError) return addCorsHeaders(fail(parseError, { code: "INVALID_JSON", status: 400, requestId }), request);
 
     const title = String(body?.title ?? "").trim();
     const price = Number(body?.price);
     const PRICE_MAX = 999_999.99;
     if (!title || Number.isNaN(price) || price <= 0 || price > PRICE_MAX) {
-      return fail("Title and a valid price (greater than 0, max 999,999.99) are required", { code: "VALIDATION_ERROR", status: 400, requestId });
+      return addCorsHeaders(
+        fail("Title and a valid price (greater than 0, max 999,999.99) are required", { code: "VALIDATION_ERROR", status: 400, requestId }),
+        request
+      );
     }
     const description = String(body?.description ?? "").trim() || "No description.";
     const categoryRaw = body?.category != null ? String(body.category).trim() : "other";
     const categoryResult = ProductCategorySchema.safeParse(categoryRaw);
     if (!categoryResult.success) {
-      return fail("Category must be one of the allowed category IDs", { code: "VALIDATION_ERROR", status: 400, requestId });
+      return addCorsHeaders(fail("Category must be one of the allowed category IDs", { code: "VALIDATION_ERROR", status: 400, requestId }), request);
     }
     const quantityAvailable = body?.quantityAvailable != null ? Number(body.quantityAvailable) : null;
     if (quantityAvailable != null && (! Number.isInteger(quantityAvailable) || quantityAvailable < 0)) {
-      return fail("Quantity available must be a non-negative integer", { code: "VALIDATION_ERROR", status: 400, requestId });
+      return addCorsHeaders(fail("Quantity available must be a non-negative integer", { code: "VALIDATION_ERROR", status: 400, requestId }), request);
     }
     const category = categoryResult.data;
     const unitRaw = body?.unit != null ? String(body.unit).trim() : "";
     const unitResult = ProductUnitSchema.safeParse(unitRaw);
     if (unitRaw !== "" && !unitResult.success) {
-      return fail("Unit must be one of: each, lb, bunch, dozen, jar, box", { code: "VALIDATION_ERROR", status: 400, requestId });
+      return addCorsHeaders(fail("Unit must be one of: each, lb, bunch, dozen, jar, box", { code: "VALIDATION_ERROR", status: 400, requestId }), request);
     }
     const unit = unitResult.success ? unitResult.data : null;
     const imageUrl = body?.imageUrl ? String(body.imageUrl).trim() : null;

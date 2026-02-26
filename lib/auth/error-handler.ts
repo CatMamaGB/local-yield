@@ -26,11 +26,14 @@ export function mapAuthErrorToResponse(
   const message = error instanceof Error ? error.message : "Forbidden";
   
   if (message === "Unauthorized") {
-    return fail("Unauthorized", {
+    const res = fail("Unauthorized", {
       code: "UNAUTHORIZED",
       status: 401,
       requestId,
     });
+    // RFC 6750: Bearer resource server must send WWW-Authenticate when unauthenticated.
+    res.headers.set("WWW-Authenticate", "Bearer");
+    return res;
   }
   
   if (message === "Forbidden") {

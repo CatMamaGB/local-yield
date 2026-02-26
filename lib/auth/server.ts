@@ -204,19 +204,29 @@ async function extractBearerToken(): Promise<string | null> {
  * Note: For Next.js API routes, Clerk's auth() helper handles cookies automatically.
  * This function is specifically for verifying Bearer tokens from mobile apps.
  */
+/** Allowed token authorized parties (azp claim). Restricts which origins can issue tokens; recommended by Clerk. */
+function getAuthorizedParties(): string[] {
+  const parties: string[] = [];
+  if (process.env.NEXT_PUBLIC_WEB_URL) parties.push(process.env.NEXT_PUBLIC_WEB_URL);
+  if (process.env.EXPO_PUBLIC_MOBILE_URL) parties.push(process.env.EXPO_PUBLIC_MOBILE_URL);
+  if (process.env.NODE_ENV === "development") {
+    parties.push("http://localhost:3000", "http://localhost:8081", "http://localhost:19006");
+  }
+  return parties;
+}
+
 async function verifyClerkToken(token: string): Promise<string | null> {
   if (!isClerkConfigured()) return null;
   try {
     const client = await clerkClient();
-    // Create a Request object with Authorization header for Clerk to verify
-    // Clerk's authenticateRequest expects a Request object and extracts the token
     const mockRequest = new Request("https://api.localyield.example", {
-      headers: { 
-        Authorization: `Bearer ${token}`,
-        // Clerk may also check for other headers, but Authorization is primary
-      },
+      headers: { Authorization: `Bearer ${token}` },
     });
-    const authResult = await client.authenticateRequest(mockRequest);
+    const authorizedParties = getAuthorizedParties();
+    const authOptions: { authorizedParties?: string[]; jwtKey?: string } = {};
+    if (authorizedParties.length > 0) authOptions.authorizedParties = authorizedParties;
+    if (process.env.CLERK_JWT_KEY) authOptions.jwtKey = process.env.CLERK_JWT_KEY;
+    const authResult = await client.authenticateRequest(mockRequest, Object.keys(authOptions).length > 0 ? authOptions : undefined);
     if (!authResult.isAuthenticated) return null;
     const auth = authResult.toAuth();
     return auth?.userId ?? null;

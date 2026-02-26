@@ -48,9 +48,14 @@ export function getCorsHeaders(request: NextRequest): Record<string, string> {
 
   return {
     "Access-Control-Allow-Origin": origin!,
+    // Prevent caches/CDNs from reusing an allowed-origin response for another origin (MDN CORS).
+    Vary: "Origin",
     "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+    // If mobile API is bearer-only, consider making credentials opt-in per route (cookies increase CSRF surface).
     "Access-Control-Allow-Credentials": "true",
+    // Allow browser JS to read these response headers (e.g. Retry-After on 429, requestId).
+    "Access-Control-Expose-Headers": "Retry-After, X-Request-Id",
     "Access-Control-Max-Age": "86400", // 24 hours
   };
 }

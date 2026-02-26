@@ -63,11 +63,14 @@ async function checkRateLimitMemory(
 
   entry.count += 1;
   if (entry.count > max) {
-    return fail("Too many requests. Please try again in a moment.", {
+    const retryAfterSeconds = Math.max(1, Math.ceil((entry.resetAt - now) / 1000));
+    const res = fail("Too many requests. Please try again in a moment.", {
       code: "RATE_LIMIT",
       status: 429,
       requestId,
     });
+    res.headers.set("Retry-After", String(retryAfterSeconds));
+    return res;
   }
 
   return null;

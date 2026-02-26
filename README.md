@@ -83,8 +83,8 @@ For **staging**, you can gate the app with HTTP Basic Auth. When `APP_GATE_ENABL
 
 - **Web API for mobile:** Mobile uses the same domain (e.g. `https://thelocalyield.com`). Main API: `GET /api/listings?zip=...` for Market browse; `/api/products`, `/api/orders`, `/api/messages`, `/api/dashboard/*`, `/api/catalog/categories`, etc.
 - **Token auth:** Mobile uses Clerk JWT via `Authorization: Bearer <token>`. `GET /api/auth/token` (dev-only) issues a dev token for local testing; in production it returns 404. See [docs/token-auth-production-fix.md](docs/token-auth-production-fix.md).
-- **CORS:** Strategic CORS is enabled on mobile-facing endpoints via `lib/cors.ts` (allowed origins, preflight handling). See [docs/cors-rollout-checklist.md](docs/cors-rollout-checklist.md).
-- **Auth errors:** API routes use `mapAuthErrorToResponse()` from `lib/auth/error-handler.ts` for consistent 401 (UNAUTHORIZED) and 403 (FORBIDDEN) responses without leaking stack traces.
+- **CORS:** Strategic CORS is enabled on mobile-facing endpoints via `lib/cors.ts` (allowed origins, preflight handling). All failure responses on CORS-enabled routes include CORS headers; responses use `Vary: Origin` and `Access-Control-Expose-Headers: Retry-After, X-Request-Id`. See [docs/cors-rollout-checklist.md](docs/cors-rollout-checklist.md).
+- **Auth errors:** API routes use `mapAuthErrorToResponse()` from `lib/auth/error-handler.ts` for consistent 401 (UNAUTHORIZED) and 403 (FORBIDDEN) responses. Bearer-token 401s include `WWW-Authenticate: Bearer` per RFC 6750.
 - **Shared types:** Monorepo `packages/shared` provides `@local-yield/shared/types`; `types/` re-exports for backward compatibility. See [docs/types-migration-completion.md](docs/types-migration-completion.md).
 - **Deep link parity:** Mobile tabs map to web routes (Market → `/market`, `/market/shop/[id]`; Orders → `/dashboard/orders`; Messages → `/messages`; Profile → `/dashboard` or `/profile`; Care → `/care/*`). Care is always available alongside Market. URL is the source of truth.
 - **Expo API pattern:** In Expo, API client uses base URL `https://thelocalyield.com`; every request sends `Authorization: Bearer <token>` when authenticated. No separate server.
@@ -287,6 +287,7 @@ The repo is structured for production: App Router by feature, domain-oriented `l
 
 ## Recent updates
 
+- ✅ **Audit follow-up (CORS & protocol headers):** CORS completeness on products, dashboard/profile, and conversations/create (all early validation/parse failures now return with CORS). Protocol-grade headers: `Vary: Origin`, `Access-Control-Expose-Headers` (Retry-After, X-Request-Id), `Retry-After` on 429 responses (in-memory and Redis rate limiters), `WWW-Authenticate: Bearer` on 401. Clerk token verification: `authorizedParties` and optional `jwtKey` passed to `authenticateRequest()`. Products `[id]` PATCH/DELETE: 401 vs 403 differentiation and `mapAuthErrorToResponse` in catch.
 - ✅ **Stripe readiness:** [docs/stripe-ready-checklist.md](docs/stripe-ready-checklist.md) — checklist for wiring Stripe (webhook, PATCH guard, idempotency); order APIs prepared for card vs cash flows.
 - ✅ **CI:** GitHub Actions workflow for lint, security audit, Prisma validate, and TypeScript check.
 - ✅ **Phase 3 mobile readiness:** Token auth (Clerk JWT + dev token), CORS on mobile endpoints, 401/403 error handling (`lib/auth/error-handler.ts`), shared types in `packages/shared`

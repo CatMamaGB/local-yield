@@ -8,6 +8,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireProducerOrAdmin } from "@/lib/auth";
 import { ok, fail, parseJsonBody, addCorsHeaders, handleCorsPreflight, withCorsOnRateLimit } from "@/lib/api";
+import { mapAuthErrorToResponse } from "@/lib/auth/error-handler";
 import { logError } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getRequestId } from "@/lib/request-id";
@@ -34,7 +35,7 @@ async function getProductAndCheckOwnership(id: string, requireAuth = true) {
   if (!product) return { product: null, error: "Not found" as const };
   if (!requireAuth) return { product, error: null };
   const user = await requireProducerOrAdmin().catch(() => null);
-  if (!user) return { product: null, error: "Forbidden" as const };
+  if (!user) return { product: null, error: "Unauthorized" as const };
   if (product.userId !== user.id && user.role !== "ADMIN") {
     return { product: null, error: "Forbidden" as const };
   }
@@ -75,7 +76,11 @@ export async function PATCH(
   try {
     const { id } = await params;
     const { error } = await getProductAndCheckOwnership(id);
-    if (error) return addCorsHeaders(fail(error, { code: error === "Not found" ? "NOT_FOUND" : "FORBIDDEN", status: error === "Not found" ? 404 : 403, requestId }), request);
+    if (error) {
+      const status = error === "Not found" ? 404 : error === "Unauthorized" ? 401 : 403;
+      const code = error === "Not found" ? "NOT_FOUND" : error === "Unauthorized" ? "UNAUTHORIZED" : "FORBIDDEN";
+      return addCorsHeaders(fail(error, { code, status, requestId }), request);
+    }
 
     const { data: body, error: parseError } = await parseJsonBody<ProductPatchBody>(request);
     if (parseError) return addCorsHeaders(fail(parseError, { code: "INVALID_JSON", status: 400, requestId }), request);
@@ -148,7 +153,8 @@ export async function PATCH(
     return addCorsHeaders(ok({ product: updated }, requestId), request);
   } catch (error) {
     logError("products/[id]/PATCH", error, { requestId, path: "/api/products/[id]", method: "PATCH" });
-    return addCorsHeaders(fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId }), request);
+    const errorResponse = mapAuthErrorToResponse(error, requestId);
+    return addCorsHeaders(errorResponse, request);
   }
 }
 
@@ -163,11 +169,16 @@ export async function DELETE(
   try {
     const { id } = await params;
     const { error } = await getProductAndCheckOwnership(id);
-    if (error) return addCorsHeaders(fail(error, { code: error === "Not found" ? "NOT_FOUND" : "FORBIDDEN", status: error === "Not found" ? 404 : 403, requestId }), request);
+    if (error) {
+      const status = error === "Not found" ? 404 : error === "Unauthorized" ? 401 : 403;
+      const code = error === "Not found" ? "NOT_FOUND" : error === "Unauthorized" ? "UNAUTHORIZED" : "FORBIDDEN";
+      return addCorsHeaders(fail(error, { code, status, requestId }), request);
+    }
     await prisma.product.delete({ where: { id } });
     return addCorsHeaders(ok(undefined, requestId), request);
   } catch (error) {
     logError("products/[id]/DELETE", error, { requestId, path: "/api/products/[id]", method: "DELETE" });
-    return addCorsHeaders(fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId }), request);
+    const errorResponse = mapAuthErrorToResponse(error, requestId);
+    return addCorsHeaders(errorResponse, request);
   }
 }
