@@ -59,7 +59,7 @@ const withClerk = clerkMiddleware(async (auth, req) => {
 
 export default async function proxy(req: NextRequest, event: NextFetchEvent) {
   const pathname = req.nextUrl.pathname;
-  if (pathname.startsWith("/admin") && process.env.NODE_ENV === "development") {
+  if (pathname.startsWith("/admin") && pathname !== "/admin/login" && process.env.NODE_ENV === "development") {
     const devUser = req.cookies.get("__dev_user")?.value;
     if (devUser !== "ADMIN") {
       return new NextResponse(ADMIN_FORBIDDEN_HTML, {

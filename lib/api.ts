@@ -4,6 +4,7 @@
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { addCorsHeaders, handleCorsPreflight } from "./cors";
 import { getRequestId } from "./request-id";
 
 /**
@@ -83,16 +84,16 @@ export function failStructured(
 }
 
 /**
- * Helper to wrap API route handlers with CORS support.
- * Usage:
- *   export async function GET(request: NextRequest) {
- *     if (request.method === "OPTIONS") {
- *       return handleCorsPreflight(request);
- *     }
- *     const response = ok(data, requestId);
- *     return addCorsHeaders(response, request);
- *   }
+ * When returning a rate-limit (429) response from a CORS-enabled route, use this so mobile clients receive CORS headers.
  */
+export function withCorsOnRateLimit(
+  rateLimitRes: Response | null,
+  request: NextRequest
+): NextResponse | null {
+  if (!rateLimitRes) return null;
+  return addCorsHeaders(rateLimitRes as NextResponse, request);
+}
+
 export { addCorsHeaders, handleCorsPreflight } from "./cors";
 
 /**

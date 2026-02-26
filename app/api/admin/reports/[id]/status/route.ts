@@ -8,6 +8,7 @@ import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateReportStatus } from "@/lib/reports";
 import { ok, fail, parseJsonBody, withRequestId } from "@/lib/api";
+import { mapAuthErrorToResponse } from "@/lib/auth/error-handler";
 import { logError } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { z } from "zod";
@@ -73,8 +74,6 @@ export async function POST(
       path: "/api/admin/reports/[id]/status",
       method: "POST",
     });
-    const message = error instanceof Error ? error.message : "";
-    if (message === "Forbidden") return fail(message, { code: "FORBIDDEN", status: 403, requestId });
-    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
+    return mapAuthErrorToResponse(error, requestId);
   }
 }

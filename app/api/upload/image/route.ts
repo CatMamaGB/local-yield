@@ -7,6 +7,7 @@
 
 import { NextRequest } from "next/server";
 import { ok, fail } from "@/lib/api";
+import { mapAuthErrorToResponse } from "@/lib/auth/error-handler";
 import { getRequestId } from "@/lib/request-id";
 import { requireProducerOrAdmin } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -26,8 +27,8 @@ export async function POST(request: NextRequest) {
 
   try {
     await requireProducerOrAdmin();
-  } catch {
-    return fail("Forbidden", { code: "FORBIDDEN", status: 403, requestId });
+  } catch (e) {
+    return mapAuthErrorToResponse(e, requestId);
   }
 
   try {

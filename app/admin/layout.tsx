@@ -1,11 +1,9 @@
 /**
- * Admin layout: shared nav. Auth enforced; non-admins redirected to /admin/forbidden.
+ * Admin layout: shared nav. Auth enforced for all routes except /admin/login (handled in AdminLayoutClient).
  */
 
-import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { getUserCapabilities } from "@/lib/authz/client";
-import { AdminNav } from "./AdminNav";
+import { AdminLayoutClient } from "./AdminLayoutClient";
 
 export default async function AdminLayout({
   children,
@@ -13,14 +11,5 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const user = await getCurrentUser();
-  if (!user) redirect("/auth/login?next=" + encodeURIComponent("/admin"));
-  const { canAdmin } = getUserCapabilities(user);
-  if (!canAdmin) redirect("/admin/forbidden");
-
-  return (
-    <div className="min-h-screen bg-brand-light">
-      <AdminNav />
-      <main>{children}</main>
-    </div>
-  );
+  return <AdminLayoutClient user={user}>{children}</AdminLayoutClient>;
 }

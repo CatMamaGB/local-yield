@@ -8,6 +8,7 @@ import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateReportAdmin, getReportById } from "@/lib/reports";
 import { ok, fail, parseJsonBody, withRequestId } from "@/lib/api";
+import { mapAuthErrorToResponse } from "@/lib/auth/error-handler";
 import { logError } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { z } from "zod";
@@ -31,8 +32,8 @@ export async function PATCH(
   let admin: Awaited<ReturnType<typeof requireAdmin>>;
   try {
     admin = await requireAdmin();
-  } catch {
-    return fail("Forbidden", { code: "FORBIDDEN", status: 403, requestId });
+  } catch (e) {
+    return mapAuthErrorToResponse(e, requestId);
   }
 
   const { id } = await params;
@@ -127,8 +128,6 @@ export async function PATCH(
       path: "/api/admin/reports/[id]",
       method: "PATCH",
     });
-    const message = error instanceof Error ? error.message : "";
-    if (message === "Forbidden") return fail(message, { code: "FORBIDDEN", status: 403, requestId });
-    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
+    return mapAuthErrorToResponse(error, requestId);
   }
 }

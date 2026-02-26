@@ -7,7 +7,8 @@ import { NextRequest } from "next/server";
 import { getCurrentUser, requireProducerOrAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getOrderByIdForUser } from "@/lib/orders";
-import { ok, fail, parseJsonBody } from "@/lib/api";
+import { ok, fail, parseJsonBody, addCorsHeaders, handleCorsPreflight, withCorsOnRateLimit } from "@/lib/api";
+import { mapAuthErrorToResponse } from "@/lib/auth/error-handler";
 import { UpdateOrderStatusSchema } from "@/lib/validators";
 import { logError } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -38,13 +39,13 @@ async function getOrderHandler(
   const requestId = getRequestId(request);
   try {
     const user = await getCurrentUser();
-    if (!user) return fail("Unauthorized", { code: "UNAUTHORIZED", status: 401, requestId });
+    if (!user) return addCorsHeaders(fail("Unauthorized", { code: "UNAUTHORIZED", status: 401, requestId }), request);
 
     const { id } = await (context?.params ?? Promise.resolve({ id: "" }));
-    if (!id) return fail("Order ID required", { code: "VALIDATION_ERROR", status: 400, requestId });
+    if (!id) return addCorsHeaders(fail("Order ID required", { code: "VALIDATION_ERROR", status: 400, requestId }), request);
     const order = await getOrderByIdForUser(id, user.id, user.role === "ADMIN");
     if (!order) {
-      return fail("Order not found", { code: "NOT_FOUND", status: 404, requestId });
+      return addCorsHeaders(fail("Order not found", { code: "NOT_FOUND", status: 404, requestId }), request);
     }
 
     const title =
@@ -54,7 +55,7 @@ async function getOrderHandler(
           : `${order.orderItems.length} items`
         : order.product?.title ?? "Order";
 
-    return ok({
+    return addCorsHeaders(ok({
       id: order.id,
       title,
       status: order.status,
@@ -78,10 +79,10 @@ async function getOrderHandler(
       product: order.product,
       isBuyer: order.buyerId === user.id,
       isProducer: order.producerId === user.id,
-    });
+    }, requestId), request);
   } catch (e) {
     logError("orders/[id]/GET", e, { requestId, path: "/api/orders/[id]", method: "GET" });
-    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
+    return addCorsHeaders(fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId }), request);
   }
 }
 
@@ -91,12 +92,12 @@ async function patchHandler(
 ) {
   const requestId = getRequestId(request);
   const rateLimitRes = await checkRateLimit(request, undefined, requestId);
-  if (rateLimitRes) return rateLimitRes;
+  if (rateLimitRes) return withCorsOnRateLimit(rateLimitRes, request) ?? rateLimitRes;
 
   try {
     const user = await requireProducerOrAdmin();
     const { id } = await (context?.params ?? Promise.resolve({ id: "" }));
-    if (!id) return fail("Order ID required", { code: "VALIDATION_ERROR", status: 400, requestId });
+    if (!id) return addCorsHeaders(fail("Order ID required", { code: "VALIDATION_ERROR", status: 400, requestId }), request);
 
     // Fetch current order (include viaCash for paid-state guardrail)
     const order = await prisma.order.findUnique({
@@ -105,25 +106,25 @@ async function patchHandler(
     });
 
     if (!order) {
-      return fail("Order not found", { code: "NOT_FOUND", status: 404, requestId });
+      return addCorsHeaders(fail("Order not found", { code: "NOT_FOUND", status: 404, requestId }), request);
     }
 
     // Authorization check
     if (order.producerId !== user.id && user.role !== "ADMIN") {
-      return fail("Forbidden", { code: "FORBIDDEN", status: 403, requestId });
+      return addCorsHeaders(fail("Forbidden", { code: "FORBIDDEN", status: 403, requestId }), request);
     }
 
     // Parse and validate request body
     const { data: body, error: parseError } = await parseJsonBody(request);
     if (parseError) {
-      return fail(parseError, { code: "INVALID_JSON", status: 400, requestId });
+      return addCorsHeaders(fail(parseError, { code: "INVALID_JSON", status: 400, requestId }), request);
     }
 
     // Validate status with Zod
     const validationResult = UpdateOrderStatusSchema.safeParse(body);
     if (!validationResult.success) {
       const firstError = validationResult.error.issues[0];
-      return fail(firstError?.message || "Invalid status", { code: "VALIDATION_ERROR", status: 400, requestId });
+      return addCorsHeaders(fail(firstError?.message || "Invalid status", { code: "VALIDATION_ERROR", status: 400, requestId }), request);
     }
 
     const newStatus = validationResult.data.status as OrderStatus;
@@ -131,24 +132,24 @@ async function patchHandler(
 
     // Validate status transition
     if (currentStatus === newStatus) {
-      return fail(`Order is already ${newStatus}`, { code: "NO_CHANGE", status: 400, requestId });
+      return addCorsHeaders(fail(`Order is already ${newStatus}`, { code: "NO_CHANGE", status: 400, requestId }), request);
     }
 
     if (!isValidTransition(currentStatus, newStatus)) {
-      return fail(`Invalid status transition: ${currentStatus} → ${newStatus}`, {
+      return addCorsHeaders(fail(`Invalid status transition: ${currentStatus} → ${newStatus}`, {
         code: "INVALID_TRANSITION",
         status: 400,
         requestId,
-      });
+      }), request);
     }
 
     // Only allow PENDING → PAID when order is cash (viaCash). Card payments must be confirmed via Stripe webhook.
     if (newStatus === "PAID" && currentStatus === "PENDING" && !order.viaCash) {
-      return fail("Order cannot be marked PAID here; card payments require Stripe confirmation", {
+      return addCorsHeaders(fail("Order cannot be marked PAID here; card payments require Stripe confirmation", {
         code: "INVALID_TRANSITION",
         status: 400,
         requestId,
-      });
+      }), request);
     }
 
     // Prepare update data
@@ -170,15 +171,17 @@ async function patchHandler(
       data: updateData,
     });
 
-    return ok({ status: newStatus });
+    return addCorsHeaders(ok({ status: newStatus }, requestId), request);
   } catch (error) {
     logError("orders/PATCH", error, { requestId, path: "/api/orders/[id]", method: "PATCH" });
-    if (error instanceof Error && error.message.includes("Forbidden")) {
-      return fail(error.message, { code: "FORBIDDEN", status: 403, requestId });
-    }
-    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
+    const errorResponse = mapAuthErrorToResponse(error, requestId);
+    return addCorsHeaders(errorResponse, request);
   }
 }
 
 export const GET = withRequestLogging(getOrderHandler);
 export const PATCH = withRequestLogging(patchHandler);
+
+export async function OPTIONS(request: NextRequest) {
+  return handleCorsPreflight(request) || new Response(null, { status: 403 });
+}

@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 import { getPendingCustomCategoriesForAdmin } from "@/lib/catalog-categories";
 import { ok, fail, withRequestId } from "@/lib/api";
+import { mapAuthErrorToResponse } from "@/lib/auth/error-handler";
 import { logError } from "@/lib/logger";
 import { AdminCustomCategoriesQuerySchema } from "@/lib/validators";
 
@@ -16,8 +17,8 @@ export async function GET(request: NextRequest) {
   const requestId = withRequestId(request);
   try {
     await requireAdmin();
-  } catch {
-    return fail("Forbidden", { code: "FORBIDDEN", status: 403, requestId });
+  } catch (e) {
+    return mapAuthErrorToResponse(e, requestId);
   }
   try {
     const { searchParams } = new URL(request.url);

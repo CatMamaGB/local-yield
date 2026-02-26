@@ -8,6 +8,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { ok, fail, parseJsonBody } from "@/lib/api";
+import { mapAuthErrorToResponse } from "@/lib/auth/error-handler";
 import { AccountUpdateSchema } from "@/lib/validators";
 import { logError } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -33,8 +34,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (e) {
     logError("account/GET", e, { requestId, path: "/api/account", method: "GET" });
-    const message = e instanceof Error ? e.message : "Unauthorized";
-    return fail(message, { code: "UNAUTHORIZED", status: 401 });
+    return mapAuthErrorToResponse(e, requestId);
   }
 }
 
@@ -77,8 +77,6 @@ export async function PATCH(request: NextRequest) {
     return ok(undefined);
   } catch (e) {
     logError("account/PATCH", e, { requestId, path: "/api/account", method: "PATCH" });
-    const message = e instanceof Error ? e.message : "";
-    if (message === "Unauthorized") return fail(message, { code: "UNAUTHORIZED", status: 401 });
-    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
+    return mapAuthErrorToResponse(e, requestId);
   }
 }

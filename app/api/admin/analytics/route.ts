@@ -7,13 +7,14 @@ import { NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, fail, withRequestId } from "@/lib/api";
+import { mapAuthErrorToResponse } from "@/lib/auth/error-handler";
 
 export async function GET(request: NextRequest) {
   const requestId = withRequestId(request);
   try {
     await requireAdmin();
-  } catch {
-    return fail("Forbidden", { code: "FORBIDDEN", status: 403, requestId });
+  } catch (e) {
+    return mapAuthErrorToResponse(e, requestId);
   }
 
   try {

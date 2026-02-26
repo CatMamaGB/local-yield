@@ -6,7 +6,8 @@
 import { NextRequest } from "next/server";
 import { getConversationById, markConversationAsRead } from "@/lib/messaging";
 import { requireAuth } from "@/lib/auth";
-import { ok, fail } from "@/lib/api";
+import { ok, fail, addCorsHeaders, handleCorsPreflight } from "@/lib/api";
+import { mapAuthErrorToResponse } from "@/lib/auth/error-handler";
 import { logError } from "@/lib/logger";
 import { getRequestId } from "@/lib/request-id";
 
@@ -19,12 +20,12 @@ export async function GET(
     const user = await requireAuth();
     const { id: conversationId } = await params;
     if (!conversationId) {
-      return fail("Conversation ID required", { code: "VALIDATION_ERROR", status: 400, requestId });
+      return addCorsHeaders(fail("Conversation ID required", { code: "VALIDATION_ERROR", status: 400, requestId }), request);
     }
 
     const conv = await getConversationById(conversationId, user.id);
     if (!conv) {
-      return fail("Conversation not found", { code: "NOT_FOUND", status: 404, requestId });
+      return addCorsHeaders(fail("Conversation not found", { code: "NOT_FOUND", status: 404, requestId }), request);
     }
 
     await markConversationAsRead(conversationId, user.id);
@@ -38,20 +39,25 @@ export async function GET(
       senderName: m.sender.name ?? null,
     }));
 
-    return ok({
+    return addCorsHeaders(ok({
       id: conv.id,
       orderId: conv.orderId,
       careBookingId: conv.careBookingId,
       other: { id: other.id, name: other.name },
       messages,
       updatedAt: conv.updatedAt.toISOString(),
-    });
+    }, requestId), request);
   } catch (e) {
     logError("dashboard/conversations/[id]/GET", e, {
       requestId,
       path: "/api/dashboard/conversations/[id]",
       method: "GET",
     });
-    return fail("Forbidden", { code: "FORBIDDEN", status: 403, requestId });
+    const errorResponse = mapAuthErrorToResponse(e, requestId);
+    return addCorsHeaders(errorResponse, request);
   }
+}
+
+export async function OPTIONS(request: NextRequest) {
+  return handleCorsPreflight(request) || new Response(null, { status: 403 });
 }

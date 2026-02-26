@@ -12,6 +12,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 import { logAdminCustomCategoryAction } from "@/lib/catalog-categories";
 import { ok, fail, parseJsonBody } from "@/lib/api";
+import { mapAuthErrorToResponse } from "@/lib/auth/error-handler";
 import { logError } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getRequestId } from "@/lib/request-id";
@@ -90,8 +91,6 @@ export async function PATCH(
     });
   } catch (e) {
     logError("admin/custom-categories/[id]/PATCH", e, { requestId, path: "/api/admin/custom-categories/[id]", method: "PATCH" });
-    const message = e instanceof Error ? e.message : "";
-    if (message === "Forbidden") return fail(message, { code: "FORBIDDEN", status: 403 });
-    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
+    return mapAuthErrorToResponse(e, requestId);
   }
 }

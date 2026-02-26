@@ -6,6 +6,7 @@ import { NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { dismissFlagByAdmin, logReviewAdminAction } from "@/lib/reviews";
 import { ok, fail } from "@/lib/api";
+import { mapAuthErrorToResponse } from "@/lib/auth/error-handler";
 import { logError } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getRequestId } from "@/lib/request-id";
@@ -21,8 +22,8 @@ export async function POST(
   let admin: { id: string };
   try {
     admin = await requireAdmin();
-  } catch {
-    return fail("Forbidden", { code: "FORBIDDEN", status: 403 });
+  } catch (e) {
+    return mapAuthErrorToResponse(e, requestId);
   }
   const { id } = await params;
   if (!id) return fail("Missing review id", { code: "VALIDATION_ERROR", status: 400 });

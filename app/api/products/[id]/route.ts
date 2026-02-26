@@ -7,7 +7,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireProducerOrAdmin } from "@/lib/auth";
-import { ok, fail, parseJsonBody } from "@/lib/api";
+import { ok, fail, parseJsonBody, addCorsHeaders, handleCorsPreflight, withCorsOnRateLimit } from "@/lib/api";
 import { logError } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getRequestId } from "@/lib/request-id";
@@ -52,12 +52,16 @@ export async function GET(
       where: { id },
       include: { user: { select: { id: true, name: true, zipCode: true } } },
     });
-    if (!product) return fail("Not found", { code: "NOT_FOUND", status: 404 });
-    return ok({ product });
+    if (!product) return addCorsHeaders(fail("Not found", { code: "NOT_FOUND", status: 404, requestId }), request);
+    return addCorsHeaders(ok({ product }, requestId), request);
   } catch (error) {
     logError("products/[id]/GET", error, { requestId, path: "/api/products/[id]", method: "GET" });
-    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
+    return addCorsHeaders(fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId }), request);
   }
+}
+
+export async function OPTIONS(request: NextRequest) {
+  return handleCorsPreflight(request) || new Response(null, { status: 403 });
 }
 
 export async function PATCH(
@@ -66,16 +70,16 @@ export async function PATCH(
 ) {
   const requestId = getRequestId(request);
   const rateLimitRes = await checkRateLimit(request, undefined, requestId);
-  if (rateLimitRes) return rateLimitRes;
+  if (rateLimitRes) return withCorsOnRateLimit(rateLimitRes, request) ?? rateLimitRes;
 
   try {
     const { id } = await params;
     const { error } = await getProductAndCheckOwnership(id);
-    if (error) return fail(error, { code: error === "Not found" ? "NOT_FOUND" : "FORBIDDEN", status: error === "Not found" ? 404 : 403, requestId });
+    if (error) return addCorsHeaders(fail(error, { code: error === "Not found" ? "NOT_FOUND" : "FORBIDDEN", status: error === "Not found" ? 404 : 403, requestId }), request);
 
     const { data: body, error: parseError } = await parseJsonBody<ProductPatchBody>(request);
-    if (parseError) return fail(parseError, { code: "INVALID_JSON", status: 400, requestId });
-    if (!body) return fail("Request body is required", { code: "VALIDATION_ERROR", status: 400, requestId });
+    if (parseError) return addCorsHeaders(fail(parseError, { code: "INVALID_JSON", status: 400, requestId }), request);
+    if (!body) return addCorsHeaders(fail("Request body is required", { code: "VALIDATION_ERROR", status: 400, requestId }), request);
 
     const updates: Record<string, unknown> = {};
     if (body?.title !== undefined) updates.title = String(body.title).trim();
@@ -89,7 +93,7 @@ export async function PATCH(
       const categoryRaw = String(body.category).trim();
       const categoryResult = ProductCategorySchema.safeParse(categoryRaw);
       if (!categoryResult.success) {
-        return fail("Category must be one of the allowed category IDs", { code: "VALIDATION_ERROR", status: 400, requestId });
+        return addCorsHeaders(fail("Category must be one of the allowed category IDs", { code: "VALIDATION_ERROR", status: 400, requestId }), request);
       }
       updates.category = categoryResult.data;
     }
@@ -99,7 +103,7 @@ export async function PATCH(
     if (body?.quantityAvailable !== undefined) {
       const q = body.quantityAvailable === null ? null : Number(body.quantityAvailable);
       if (q !== null && (!Number.isInteger(q) || q < 0)) {
-        return fail("Quantity available must be a non-negative integer", { code: "VALIDATION_ERROR", status: 400, requestId });
+        return addCorsHeaders(fail("Quantity available must be a non-negative integer", { code: "VALIDATION_ERROR", status: 400, requestId }), request);
       }
       updates.quantityAvailable = q !== null ? q : null;
     }
@@ -107,7 +111,7 @@ export async function PATCH(
       const unitRaw = body.unit === null ? "" : String(body.unit).trim();
       const unitResult = ProductUnitSchema.safeParse(unitRaw);
       if (!unitResult.success) {
-        return fail("Unit must be one of: each, lb, bunch, dozen, jar, box", { code: "VALIDATION_ERROR", status: 400, requestId });
+        return addCorsHeaders(fail("Unit must be one of: each, lb, bunch, dozen, jar, box", { code: "VALIDATION_ERROR", status: 400, requestId }), request);
       }
       updates.unit = unitResult.data;
     }
@@ -141,10 +145,10 @@ export async function PATCH(
       });
     }
 
-    return ok({ product: updated });
+    return addCorsHeaders(ok({ product: updated }, requestId), request);
   } catch (error) {
     logError("products/[id]/PATCH", error, { requestId, path: "/api/products/[id]", method: "PATCH" });
-    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
+    return addCorsHeaders(fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId }), request);
   }
 }
 
@@ -154,16 +158,16 @@ export async function DELETE(
 ) {
   const requestId = getRequestId(request);
   const rateLimitRes = await checkRateLimit(request, undefined, requestId);
-  if (rateLimitRes) return rateLimitRes;
+  if (rateLimitRes) return withCorsOnRateLimit(rateLimitRes, request) ?? rateLimitRes;
 
   try {
     const { id } = await params;
     const { error } = await getProductAndCheckOwnership(id);
-    if (error) return fail(error, { code: error === "Not found" ? "NOT_FOUND" : "FORBIDDEN", status: error === "Not found" ? 404 : 403, requestId });
+    if (error) return addCorsHeaders(fail(error, { code: error === "Not found" ? "NOT_FOUND" : "FORBIDDEN", status: error === "Not found" ? 404 : 403, requestId }), request);
     await prisma.product.delete({ where: { id } });
-    return ok(undefined);
+    return addCorsHeaders(ok(undefined, requestId), request);
   } catch (error) {
     logError("products/[id]/DELETE", error, { requestId, path: "/api/products/[id]", method: "DELETE" });
-    return fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId });
+    return addCorsHeaders(fail("Something went wrong", { code: "INTERNAL_ERROR", status: 500, requestId }), request);
   }
 }

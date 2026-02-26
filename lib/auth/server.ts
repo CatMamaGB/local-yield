@@ -246,12 +246,22 @@ async function getUserFromToken(token: string): Promise<SessionUser | null> {
   if (isClerkConfigured()) {
     const userId = await verifyClerkToken(token);
     if (userId) {
-      // Token is valid - get user from Clerk and sync to DB
-      const clerkUser = await currentUser();
-      const email = clerkUser?.emailAddresses?.[0]?.emailAddress ?? "";
-      const name = clerkUser?.firstName || clerkUser?.lastName
-        ? [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || null
-        : clerkUser?.username ?? null;
+      // Token auth has no cookies; fetch user by token-derived userId from Clerk
+      const client = await clerkClient();
+      let clerkUser: Awaited<ReturnType<typeof client.users.getUser>> | null = null;
+      try {
+        clerkUser = await client.users.getUser(userId);
+      } catch {
+        // User may have been deleted in Clerk; sync will use fallbacks
+      }
+      const primaryEmail = clerkUser?.primaryEmailAddressId
+        ? clerkUser.emailAddresses?.find((e) => e.id === clerkUser!.primaryEmailAddressId)?.emailAddress
+        : undefined;
+      const email = primaryEmail ?? clerkUser?.emailAddresses?.[0]?.emailAddress ?? "";
+      const name =
+        clerkUser?.firstName || clerkUser?.lastName
+          ? [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ").trim() || null
+          : (clerkUser?.username as string | null) ?? null;
       const dbUser = await syncClerkUserToDb(userId, email, name, clerkUser ?? undefined);
       
       // CRITICAL: Always reload from DB to ensure capabilities are current

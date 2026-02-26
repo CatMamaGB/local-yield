@@ -40,8 +40,16 @@ function derivePlatformUse(roles: string[], primaryMode: PrimaryMode): PlatformU
   return PlatformUse.OTHER;
 }
 
+function isClerkConfigured(): boolean {
+  return Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY);
+}
+
 export async function POST(request: NextRequest) {
   const requestId = withRequestId(request);
+  // In production with Clerk, sign-up is handled by Clerk; this endpoint is dev/stub-only.
+  if (isClerkConfigured() && process.env.NODE_ENV === "production") {
+    return fail("Sign-up is not available here. Use the app sign-up flow.", { code: "NOT_AVAILABLE", status: 404, requestId });
+  }
   const rateLimitRes = await checkRateLimit(request, RATE_LIMIT_PRESETS.AUTH, requestId);
   if (rateLimitRes) return rateLimitRes;
 

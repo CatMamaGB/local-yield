@@ -7,6 +7,7 @@ import { NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { getCustomCategoryActionLogs } from "@/lib/catalog-categories";
 import { ok, fail } from "@/lib/api";
+import { mapAuthErrorToResponse } from "@/lib/auth/error-handler";
 import { logError } from "@/lib/logger";
 import { getRequestId } from "@/lib/request-id";
 
@@ -14,8 +15,8 @@ export async function GET(request: NextRequest) {
   const requestId = getRequestId(request);
   try {
     await requireAdmin();
-  } catch {
-    return fail("Forbidden", { code: "FORBIDDEN", status: 403 });
+  } catch (e) {
+    return mapAuthErrorToResponse(e, requestId);
   }
   try {
     const { searchParams } = new URL(request.url);

@@ -6,7 +6,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireProducerOrAdmin } from "@/lib/auth";
-import { ok, fail, parseJsonBody, addCorsHeaders, handleCorsPreflight } from "@/lib/api";
+import { ok, fail, parseJsonBody, addCorsHeaders, handleCorsPreflight, withCorsOnRateLimit } from "@/lib/api";
 import { mapAuthErrorToResponse } from "@/lib/auth/error-handler";
 import { ProfileUpdateSchema } from "@/lib/validators";
 import { logError } from "@/lib/logger";
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const requestId = getRequestId(request);
   const rateLimitRes = await checkRateLimit(request, undefined, requestId);
-  if (rateLimitRes) return rateLimitRes;
+  if (rateLimitRes) return withCorsOnRateLimit(rateLimitRes, request) ?? rateLimitRes;
 
   try {
     const user = await requireProducerOrAdmin();

@@ -5,7 +5,8 @@
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { sendMessage } from "@/lib/messaging";
-import { ok, fail, parseJsonBody } from "@/lib/api";
+import { ok, fail, parseJsonBody, addCorsHeaders, handleCorsPreflight, withCorsOnRateLimit } from "@/lib/api";
+import { mapAuthErrorToResponse } from "@/lib/auth/error-handler";
 import { logError } from "@/lib/logger";
 import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limit";
 import { getRequestId } from "@/lib/request-id";
@@ -17,28 +18,28 @@ export async function POST(
 ) {
   const requestId = getRequestId(request);
   const rateLimitRes = await checkRateLimit(request, RATE_LIMIT_PRESETS.MESSAGES, requestId);
-  if (rateLimitRes) return rateLimitRes;
+  if (rateLimitRes) return withCorsOnRateLimit(rateLimitRes, request) ?? rateLimitRes;
 
   try {
     const user = await requireAuth();
     const { id: conversationId } = await params;
     if (!conversationId) {
-      return fail("Conversation ID required", { code: "VALIDATION_ERROR", status: 400, requestId });
+      return addCorsHeaders(fail("Conversation ID required", { code: "VALIDATION_ERROR", status: 400, requestId }), request);
     }
 
     const { data: body, error: parseError } = await parseJsonBody(request);
     if (parseError) {
-      return fail(parseError, { code: "INVALID_JSON", status: 400, requestId });
+      return addCorsHeaders(fail(parseError, { code: "INVALID_JSON", status: 400, requestId }), request);
     }
 
     const validation = SendMessageSchema.safeParse(body);
     if (!validation.success) {
       const first = validation.error.issues[0];
-      return fail(first?.message ?? "Invalid request", {
+      return addCorsHeaders(fail(first?.message ?? "Invalid request", {
         code: "VALIDATION_ERROR",
         status: 400,
         requestId,
-      });
+      }), request);
     }
 
     const message = await sendMessage({
@@ -47,7 +48,7 @@ export async function POST(
       body: validation.data.body,
     });
 
-    return ok(
+    return addCorsHeaders(ok(
       {
         id: message.id,
         body: message.body,
@@ -55,23 +56,28 @@ export async function POST(
         fromMe: true,
       },
       requestId
-    );
+    ), request);
   } catch (e) {
     if (e instanceof Error && e.message.startsWith("PII_DETECTED:")) {
-      return fail("Message contains information we cannot allow. Please rephrase.", {
+      return addCorsHeaders(fail("Message contains information we cannot allow. Please rephrase.", {
         code: "PII_DETECTED",
         status: 400,
         requestId,
-      });
+      }), request);
     }
     if (e instanceof Error && e.message === "Conversation not found") {
-      return fail("Conversation not found", { code: "NOT_FOUND", status: 404, requestId });
+      return addCorsHeaders(fail("Conversation not found", { code: "NOT_FOUND", status: 404, requestId }), request);
     }
     logError("dashboard/conversations/[id]/messages/POST", e, {
       requestId,
       path: "/api/dashboard/conversations/[id]/messages",
       method: "POST",
     });
-    return fail("Failed to send message", { code: "INTERNAL_ERROR", status: 500, requestId });
+    const errorResponse = mapAuthErrorToResponse(e, requestId);
+    return addCorsHeaders(errorResponse, request);
   }
+}
+
+export async function OPTIONS(request: NextRequest) {
+  return handleCorsPreflight(request) || new Response(null, { status: 403 });
 }

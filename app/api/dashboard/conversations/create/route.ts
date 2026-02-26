@@ -5,7 +5,7 @@
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { getOrCreateConversation } from "@/lib/messaging";
-import { ok, fail, parseJsonBody, withRequestId, addCorsHeaders, handleCorsPreflight } from "@/lib/api";
+import { ok, fail, parseJsonBody, withRequestId, addCorsHeaders, handleCorsPreflight, withCorsOnRateLimit } from "@/lib/api";
 import { mapAuthErrorToResponse } from "@/lib/auth/error-handler";
 import { logError } from "@/lib/logger";
 import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limit";
@@ -18,7 +18,7 @@ const CreateConversationSchema = z.object({
 export async function POST(request: NextRequest) {
   const requestId = withRequestId(request);
   const rateLimitRes = await checkRateLimit(request, RATE_LIMIT_PRESETS.MESSAGES, requestId);
-  if (rateLimitRes) return rateLimitRes;
+  if (rateLimitRes) return withCorsOnRateLimit(rateLimitRes, request) ?? rateLimitRes;
 
   try {
     const user = await requireAuth();
